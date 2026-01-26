@@ -3,7 +3,14 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
-// Create a placeholder client if env vars are missing (for build time)
+// Validate environment variables
+if (typeof window !== 'undefined' && (!supabaseUrl || !supabaseAnonKey)) {
+  console.error('❌ Variables d\'environnement Supabase manquantes !');
+  console.error('NEXT_PUBLIC_SUPABASE_URL:', supabaseUrl ? '✅' : '❌');
+  console.error('NEXT_PUBLIC_SUPABASE_ANON_KEY:', supabaseAnonKey ? '✅' : '❌');
+}
+
+// Create Supabase client
 let supabase: SupabaseClient;
 
 if (supabaseUrl && supabaseAnonKey) {
@@ -15,13 +22,17 @@ if (supabaseUrl && supabaseAnonKey) {
     }
   });
 } else {
-  // Dummy client for build time - will be replaced at runtime
-  supabase = createClient('https://placeholder.supabase.co', 'placeholder-key', {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
+  // Dummy client for build time - will fail at runtime if env vars missing
+  supabase = createClient(
+    'https://placeholder.supabase.co', 
+    'placeholder-key', 
+    {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      }
     }
-  });
+  );
 }
 
 export { supabase };

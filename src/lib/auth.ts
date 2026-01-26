@@ -4,15 +4,30 @@ import { supabase } from './supabaseClient';
 import type { User, Session } from '@supabase/supabase-js';
 
 export async function signInWithMagicLink(email: string): Promise<{ error: Error | null }> {
-  const { error } = await supabase.auth.signInWithOtp({
-    email,
-    options: {
-      emailRedirectTo: typeof window !== 'undefined' 
-        ? `${window.location.origin}/auth/callback`
-        : undefined
+  try {
+    const { error, data } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        emailRedirectTo: typeof window !== 'undefined' 
+          ? `${window.location.origin}/auth/callback`
+          : undefined
+      }
+    });
+    
+    if (error) {
+      console.error('Erreur Supabase auth:', error);
+      return { error: new Error(error.message || 'Erreur de connexion') };
     }
-  });
-  return { error };
+    
+    return { error: null };
+  } catch (err) {
+    console.error('Erreur lors de l\'envoi du magic link:', err);
+    return { 
+      error: err instanceof Error 
+        ? err 
+        : new Error('Erreur réseau. Vérifiez votre connexion.') 
+    };
+  }
 }
 
 export async function signOut(): Promise<void> {
