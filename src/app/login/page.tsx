@@ -22,14 +22,31 @@ export default function LoginPage() {
     setIsLoading(true);
     setError(null);
 
-    const { error: authError } = await signInWithMagicLink(email.trim());
+    try {
+      // Vérifier que les variables d'environnement sont présentes
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      
+      if (!supabaseUrl || !supabaseKey) {
+        setError('Configuration manquante. Vérifiez les variables d\'environnement sur Vercel.');
+        setIsLoading(false);
+        console.error('Variables manquantes:', { supabaseUrl: !!supabaseUrl, supabaseKey: !!supabaseKey });
+        return;
+      }
 
-    setIsLoading(false);
+      const { error: authError } = await signInWithMagicLink(email.trim());
 
-    if (authError) {
-      setError(authError.message);
-    } else {
-      setIsSent(true);
+      if (authError) {
+        console.error('Erreur auth:', authError);
+        setError(authError.message || 'Erreur lors de l\'envoi. Vérifiez votre connexion.');
+      } else {
+        setIsSent(true);
+      }
+    } catch (err) {
+      console.error('Erreur inattendue:', err);
+      setError('Erreur réseau. Vérifiez votre connexion internet.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -93,7 +110,12 @@ export default function LoginPage() {
                 </div>
 
                 {error && (
-                  <p className="text-sm text-red-500 text-center">{error}</p>
+                  <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                    <p className="text-sm text-red-600 dark:text-red-400 text-center font-medium">{error}</p>
+                    <p className="text-xs text-red-500 dark:text-red-500 mt-2 text-center">
+                      Ouvre la console (F12) pour plus de détails
+                    </p>
+                  </div>
                 )}
 
                 <Button type="submit" className="w-full" disabled={isLoading}>
