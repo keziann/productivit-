@@ -5,19 +5,20 @@ import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Mail, Loader2, CheckCircle2 } from 'lucide-react';
-import { signInWithMagicLink } from '@/lib/auth';
+import { Mail, Lock, Loader2 } from 'lucide-react';
+import { signInWithPassword, signUp } from '@/lib/auth';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isSignUp, setIsSignUp] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [isSent, setIsSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim()) return;
+    if (!email.trim() || !password.trim()) return;
 
     setIsLoading(true);
     setError(null);
@@ -34,13 +35,16 @@ export default function LoginPage() {
         return;
       }
 
-      const { error: authError } = await signInWithMagicLink(email.trim());
+      const { error: authError } = isSignUp
+        ? await signUp(email.trim(), password)
+        : await signInWithPassword(email.trim(), password);
 
       if (authError) {
         console.error('Erreur auth:', authError);
-        setError(authError.message || 'Erreur lors de l\'envoi. Vérifiez votre connexion.');
+        setError(authError.message || 'Erreur lors de la connexion.');
       } else {
-        setIsSent(true);
+        // Success - AuthProvider will redirect to dashboard
+        router.push('/');
       }
     } catch (err) {
       console.error('Erreur inattendue:', err);
@@ -66,79 +70,88 @@ export default function LoginPage() {
 
         <Card>
           <CardHeader className="text-center">
-            <CardTitle>{isSent ? 'Email envoyé !' : 'Connexion'}</CardTitle>
+            <CardTitle>{isSignUp ? 'Créer un compte' : 'Connexion'}</CardTitle>
             <CardDescription>
-              {isSent
-                ? 'Vérifiez votre boîte mail pour vous connecter'
-                : 'Entrez votre email pour recevoir un lien de connexion'
+              {isSignUp
+                ? 'Créez votre compte pour commencer'
+                : 'Connectez-vous à votre compte'
               }
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {isSent ? (
-              <div className="flex flex-col items-center gap-4 py-4">
-                <div className="w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
-                  <CheckCircle2 className="w-8 h-8 text-emerald-600 dark:text-emerald-400" />
-                </div>
-                <div className="text-center">
-                  <p className="font-medium">Lien envoyé à</p>
-                  <p className="text-muted-foreground text-sm">{email}</p>
-                </div>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setIsSent(false);
-                    setEmail('');
-                  }}
-                >
-                  Utiliser un autre email
-                </Button>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  type="email"
+                  placeholder="votre@email.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="pl-10"
+                  required
+                  disabled={isLoading}
+                  autoComplete="email"
+                />
               </div>
-            ) : (
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    type="email"
-                    placeholder="votre@email.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="pl-10"
-                    required
-                    disabled={isLoading}
-                  />
+
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  type="password"
+                  placeholder="Mot de passe"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="pl-10"
+                  required
+                  disabled={isLoading}
+                  autoComplete={isSignUp ? 'new-password' : 'current-password'}
+                  minLength={6}
+                />
+              </div>
+
+              {error && (
+                <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                  <p className="text-sm text-red-600 dark:text-red-400 text-center font-medium">{error}</p>
                 </div>
+              )}
 
-                {error && (
-                  <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
-                    <p className="text-sm text-red-600 dark:text-red-400 text-center font-medium">{error}</p>
-                    <p className="text-xs text-red-500 dark:text-red-500 mt-2 text-center">
-                      Ouvre la console (F12) pour plus de détails
-                    </p>
-                  </div>
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    {isSignUp ? 'Création...' : 'Connexion...'}
+                  </>
+                ) : (
+                  isSignUp ? 'Créer mon compte' : 'Se connecter'
                 )}
+              </Button>
+            </form>
 
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Envoi en cours...
-                    </>
-                  ) : (
-                    'Recevoir le lien de connexion'
-                  )}
-                </Button>
-              </form>
-            )}
+            <div className="mt-4 text-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsSignUp(!isSignUp);
+                  setError(null);
+                }}
+                className="text-sm text-muted-foreground hover:text-foreground underline"
+              >
+                {isSignUp
+                  ? 'Déjà un compte ? Se connecter'
+                  : 'Pas encore de compte ? Créer un compte'
+                }
+              </button>
+            </div>
           </CardContent>
         </Card>
 
         <p className="text-center text-xs text-muted-foreground mt-6">
-          Pas de mot de passe nécessaire.<br />
-          Un lien de connexion sera envoyé à votre email.
+          {isSignUp 
+            ? 'Le mot de passe doit faire au moins 6 caractères'
+            : 'Mot de passe oublié ? Créez un nouveau compte avec le même email'
+          }
         </p>
       </div>
     </div>
   );
 }
-
