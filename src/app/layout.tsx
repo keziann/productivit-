@@ -19,11 +19,21 @@ export const metadata: Metadata = {
   title: "Habit Tracker",
   description: "Suivez vos habitudes quotidiennes et améliorez votre productivité",
   manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Habit Tracker",
+  },
+  formatDetection: {
+    telephone: false,
+  },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
   viewportFit: "cover",
   themeColor: "#10b981",
 };

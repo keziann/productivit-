@@ -119,19 +119,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     );
 
-    // Initial session check
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      setIsLoading(false);
-      
-      if (session?.user && (pathname === '/login' || pathname === '/auth/callback')) {
-        router.push('/');
-      } else if (!session?.user && pathname !== '/login' && pathname !== '/auth/callback') {
-        router.push('/login');
+    // Initial session check - with retry for PWA
+    const checkSession = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('Erreur récupération session:', error);
+        }
+        
+        setUser(session?.user ?? null);
+        setIsLoading(false);
+        
+        if (session?.user) {
+          // User is logged in
+          if (pathname === '/login' || pathname === '/auth/callback') {
+            router.push('/');
+          }
+        } else {
+          // No session
+          if (pathname !== '/login' && pathname !== '/auth/callback') {
+            router.push('/login');
+          }
+        }
+      } catch (err) {
+        console.error('Erreur lors de la vérification de session:', err);
+        setIsLoading(false);
+        if (pathname !== '/login') {
+          router.push('/login');
+        }
       }
-    });
+    };
 
-    return () => subscription.unsubscribe();
+    // Check immediately
+    checkSession();
+    
+    // Also check after a short delay (for PWA localStorage initialization)
+    const timeoutId = setTimeout(checkSession, 500);
+
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(timeoutId);
+    };
   }, [router, pathname]);
 
   // Online/offline listener
