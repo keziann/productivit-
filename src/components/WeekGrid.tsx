@@ -8,9 +8,9 @@ import { TaskToggleCompact } from './TaskToggle';
 import { useAuth } from './AuthProvider';
 import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
 import {
-  fetchActiveTasks,
-  fetchEntries,
-  upsertEntry
+  getActiveTasks,
+  getEntries,
+  saveEntry
 } from '@/lib/data';
 import type { Task, Entry } from '@/lib/db';
 import {
@@ -31,7 +31,7 @@ interface WeekGridProps {
 }
 
 export function WeekGrid({ initialDate = new Date() }: WeekGridProps) {
-  const { user, refreshSyncStatus } = useAuth();
+  const { isAuthenticated } = useAuth();
   const [currentDate, setCurrentDate] = useState(initialDate);
   const [weekInfo, setWeekInfo] = useState<WeekInfo>(() => getWeekInfo(initialDate));
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -41,7 +41,7 @@ export function WeekGrid({ initialDate = new Date() }: WeekGridProps) {
 
   // Load data
   const loadData = useCallback(async () => {
-    if (!user) return;
+    if (!isAuthenticated) return;
     
     setIsLoading(true);
     const info = getWeekInfo(currentDate);
@@ -52,8 +52,8 @@ export function WeekGrid({ initialDate = new Date() }: WeekGridProps) {
 
     try {
       const [tasksData, allEntriesData] = await Promise.all([
-        fetchActiveTasks(user.id),
-        fetchEntries(user.id)
+        getActiveTasks(),
+        getEntries()
       ]);
 
       // Filter entries for this week
@@ -69,7 +69,7 @@ export function WeekGrid({ initialDate = new Date() }: WeekGridProps) {
     } finally {
       setIsLoading(false);
     }
-  }, [user, currentDate]);
+  }, [isAuthenticated, currentDate]);
 
   useEffect(() => {
     loadData();
@@ -82,7 +82,7 @@ export function WeekGrid({ initialDate = new Date() }: WeekGridProps) {
 
   // Handle toggle
   const handleToggle = async (taskId: string, date: string, currentValue: 1 | 0 | null) => {
-    if (!user) return;
+    if (!isAuthenticated) return;
     
     let newValue: 1 | 0 | null;
     if (currentValue === null) newValue = 1;
@@ -115,8 +115,7 @@ export function WeekGrid({ initialDate = new Date() }: WeekGridProps) {
     });
 
     try {
-      await upsertEntry(user.id, taskId, date, newValue);
-      await refreshSyncStatus();
+      await saveEntry(taskId, date, newValue);
     } catch (error) {
       console.error('Error updating entry:', error);
     }
@@ -128,7 +127,7 @@ export function WeekGrid({ initialDate = new Date() }: WeekGridProps) {
     return entry?.value ?? null;
   };
 
-  if (!user) return null;
+  if (!isAuthenticated) return null;
 
   // Calculate week average
   const weekDates = weekInfo.days.map(d => formatDate(d));

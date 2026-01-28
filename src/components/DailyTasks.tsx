@@ -6,9 +6,9 @@ import { Badge } from '@/components/ui/badge';
 import { TaskToggle } from './TaskToggle';
 import { useAuth } from './AuthProvider';
 import {
-  fetchActiveTasks,
-  fetchEntriesForDate,
-  upsertEntry
+  getActiveTasks,
+  getEntriesForDate,
+  saveEntry
 } from '@/lib/data';
 import type { Task, Entry } from '@/lib/db';
 import { formatDate } from '@/lib/stats';
@@ -21,7 +21,7 @@ interface DailyTasksProps {
 }
 
 export function DailyTasks({ date = new Date() }: DailyTasksProps) {
-  const { user, refreshSyncStatus } = useAuth();
+  const { isAuthenticated } = useAuth();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -29,13 +29,13 @@ export function DailyTasks({ date = new Date() }: DailyTasksProps) {
   const dateStr = formatDate(date);
 
   const loadData = useCallback(async () => {
-    if (!user) return;
+    if (!isAuthenticated) return;
     
     setIsLoading(true);
     try {
       const [tasksData, entriesData] = await Promise.all([
-        fetchActiveTasks(user.id),
-        fetchEntriesForDate(user.id, dateStr)
+        getActiveTasks(),
+        getEntriesForDate(dateStr)
       ]);
       setTasks(tasksData);
       setEntries(entriesData);
@@ -44,14 +44,14 @@ export function DailyTasks({ date = new Date() }: DailyTasksProps) {
     } finally {
       setIsLoading(false);
     }
-  }, [user, dateStr]);
+  }, [isAuthenticated, dateStr]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
 
   const handleToggle = async (taskId: string, currentValue: 1 | 0 | null) => {
-    if (!user) return;
+    if (!isAuthenticated) return;
     
     let newValue: 1 | 0 | null;
     if (currentValue === null) newValue = 1;
@@ -73,8 +73,7 @@ export function DailyTasks({ date = new Date() }: DailyTasksProps) {
 
     // Send to Supabase (or queue if offline)
     try {
-      await upsertEntry(user.id, taskId, dateStr, newValue);
-      await refreshSyncStatus();
+      await saveEntry(taskId, dateStr, newValue);
     } catch (error) {
       console.error('Error updating entry:', error);
     }
@@ -85,7 +84,7 @@ export function DailyTasks({ date = new Date() }: DailyTasksProps) {
     return entry?.value ?? null;
   };
 
-  if (!user) return null;
+  if (!isAuthenticated) return null;
 
   if (isLoading) {
     return (

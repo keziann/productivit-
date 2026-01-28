@@ -26,9 +26,9 @@ import {
 } from 'lucide-react';
 import { useAuth } from './AuthProvider';
 import {
-  fetchTasks,
-  upsertTask,
-  deleteTaskRemote
+  getTasks,
+  saveTask,
+  removeTask
 } from '@/lib/data';
 import type { Task } from '@/lib/db';
 import { cn } from '@/lib/utils';
@@ -45,7 +45,7 @@ const CATEGORIES = [
 ];
 
 export function TaskList() {
-  const { user, refreshSyncStatus } = useAuth();
+  const { isAuthenticated } = useAuth();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showArchived, setShowArchived] = useState(false);
@@ -58,18 +58,18 @@ export function TaskList() {
 
   // Load tasks
   const loadTasks = useCallback(async () => {
-    if (!user) return;
+    if (!isAuthenticated) return;
     
     setIsLoading(true);
     try {
-      const data = await fetchTasks(user.id);
+      const data = await getTasks();
       setTasks(data);
     } catch (error) {
       console.error('Error loading tasks:', error);
     } finally {
       setIsLoading(false);
     }
-  }, [user]);
+  }, [isAuthenticated]);
 
   useEffect(() => {
     loadTasks();
@@ -77,7 +77,7 @@ export function TaskList() {
 
   // Add task
   const handleAddTask = async () => {
-    if (!user || !newTaskName.trim()) return;
+    if (!isAuthenticated || !newTaskName.trim()) return;
     
     const newTask: Task = {
       id: crypto.randomUUID(),
@@ -96,8 +96,7 @@ export function TaskList() {
     setIsAddDialogOpen(false);
 
     try {
-      await upsertTask(user.id, newTask);
-      await refreshSyncStatus();
+      await saveTask(newTask);
     } catch (error) {
       console.error('Error adding task:', error);
       loadTasks(); // Reload on error
@@ -106,7 +105,7 @@ export function TaskList() {
 
   // Update task
   const handleUpdateTask = async () => {
-    if (!user || !editingTask || !editName.trim()) return;
+    if (!isAuthenticated || !editingTask || !editName.trim()) return;
 
     const updatedTask = {
       ...editingTask,
@@ -119,8 +118,7 @@ export function TaskList() {
     setEditingTask(null);
 
     try {
-      await upsertTask(user.id, updatedTask);
-      await refreshSyncStatus();
+      await saveTask(updatedTask);
     } catch (error) {
       console.error('Error updating task:', error);
       loadTasks();
@@ -129,7 +127,7 @@ export function TaskList() {
 
   // Archive/unarchive task
   const handleToggleArchive = async (task: Task) => {
-    if (!user) return;
+    if (!isAuthenticated) return;
 
     const updatedTask = { ...task, active: !task.active };
     
@@ -137,8 +135,7 @@ export function TaskList() {
     setTasks(prev => prev.map(t => t.id === task.id ? updatedTask : t));
 
     try {
-      await upsertTask(user.id, updatedTask);
-      await refreshSyncStatus();
+      await saveTask(updatedTask);
     } catch (error) {
       console.error('Error toggling archive:', error);
       loadTasks();
@@ -147,14 +144,13 @@ export function TaskList() {
 
   // Delete task
   const handleDeleteTask = async (taskId: string) => {
-    if (!user || !confirm('Supprimer cette tâche et toutes ses entrées ?')) return;
+    if (!isAuthenticated || !confirm('Supprimer cette tâche et toutes ses entrées ?')) return;
 
     // Optimistic update
     setTasks(prev => prev.filter(t => t.id !== taskId));
 
     try {
-      await deleteTaskRemote(user.id, taskId);
-      await refreshSyncStatus();
+      await removeTask(taskId);
     } catch (error) {
       console.error('Error deleting task:', error);
       loadTasks();
@@ -163,7 +159,7 @@ export function TaskList() {
 
   // Reorder tasks
   const handleMoveTask = async (taskId: string, direction: 'up' | 'down') => {
-    if (!user) return;
+    if (!isAuthenticated) return;
     
     const activeTasks = tasks.filter(t => t.active);
     const currentIndex = activeTasks.findIndex(t => t.id === taskId);
@@ -185,16 +181,15 @@ export function TaskList() {
     try {
       // Update all tasks with new order
       for (const task of updatedTasks) {
-        await upsertTask(user.id, task);
+        await saveTask(task);
       }
-      await refreshSyncStatus();
     } catch (error) {
       console.error('Error reordering tasks:', error);
       loadTasks();
     }
   };
 
-  if (!user) return null;
+  if (!isAuthenticated) return null;
 
   const activeTasks = tasks.filter(t => t.active);
   const archivedTasks = tasks.filter(t => !t.active);

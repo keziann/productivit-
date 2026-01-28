@@ -2,6 +2,24 @@ import { supabase, type DBTask, type DBEntry, type DBDayNote, type DBUserSetting
 import { addToOutbox, isOnline } from './outbox';
 import type { Task, Entry, DayNote } from './db';
 
+// Fixed user ID for single-user mode (simple PIN authentication)
+// This is a deterministic UUID based on the app name
+export const FIXED_USER_ID = '00000000-0000-0000-0000-000000000001';
+
+// Helper functions that use the fixed user ID
+export const getTasks = () => fetchTasks(FIXED_USER_ID);
+export const getActiveTasks = () => fetchActiveTasks(FIXED_USER_ID);
+export const saveTask = (task: Partial<Task> & { id: string; name: string }) => upsertTask(FIXED_USER_ID, task);
+export const removeTask = (taskId: string) => deleteTaskRemote(FIXED_USER_ID, taskId);
+export const getEntries = (startDate?: string, endDate?: string) => fetchEntries(FIXED_USER_ID, startDate, endDate);
+export const getEntriesForDate = (date: string) => fetchEntriesForDate(FIXED_USER_ID, date);
+export const saveEntry = (taskId: string, date: string, value: 1 | 0 | null) => upsertEntry(FIXED_USER_ID, taskId, date, value);
+export const getDayNote = (date: string) => fetchDayNote(FIXED_USER_ID, date);
+export const getDayNotes = (startDate: string, endDate: string) => fetchDayNotes(FIXED_USER_ID, startDate, endDate);
+export const saveDayNote = (date: string, learnedText: string, notesText: string) => upsertDayNote(FIXED_USER_ID, date, learnedText, notesText);
+export const getUserSettings = () => fetchUserSettings(FIXED_USER_ID);
+export const saveMotivationImage = (imageUrl: string | null) => updateMotivationImage(FIXED_USER_ID, imageUrl);
+
 // ============================================
 // TASKS
 // ============================================

@@ -18,7 +18,20 @@ const navItems = [
 export function Navbar() {
   const pathname = usePathname();
   const [isDark, setIsDark] = useState(false);
-  const { user, syncStatus } = useAuth();
+  const [isOnline, setIsOnline] = useState(true);
+  const { isAuthenticated } = useAuth();
+
+  useEffect(() => {
+    setIsOnline(navigator.onLine);
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   useEffect(() => {
     const dark = localStorage.getItem('theme') === 'dark' ||
@@ -40,7 +53,7 @@ export function Navbar() {
   }
 
   // Don't show navbar if not logged in
-  if (!user) {
+  if (!isAuthenticated) {
     return null;
   }
 
@@ -56,7 +69,7 @@ export function Navbar() {
             <span className="font-semibold text-lg">Habit Tracker</span>
             
             {/* Offline indicator */}
-            {!syncStatus.isOnline && (
+            {!isOnline && (
               <span className="flex items-center gap-1 text-xs text-yellow-600 dark:text-yellow-400 ml-2">
                 <CloudOff className="w-3 h-3" />
                 Hors ligne
@@ -116,7 +129,7 @@ export function Navbar() {
         </div>
         
         {/* Offline banner for mobile */}
-        {!syncStatus.isOnline && (
+        {!isOnline && (
           <div className="absolute -top-6 left-0 right-0 bg-yellow-500 text-yellow-900 text-xs text-center py-1">
             <CloudOff className="w-3 h-3 inline mr-1" />
             Mode hors ligne

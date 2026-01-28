@@ -5,7 +5,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BookOpen, FileText } from 'lucide-react';
 import { useAuth } from './AuthProvider';
-import { fetchDayNote, upsertDayNote } from '@/lib/data';
+import { getDayNote, saveDayNote } from '@/lib/data';
 import { formatDateDisplay } from '@/lib/stats';
 
 interface DayNotesProps {
@@ -15,16 +15,16 @@ interface DayNotesProps {
 }
 
 export function DayNotes({ date, dateObj, compact = false }: DayNotesProps) {
-  const { user, refreshSyncStatus } = useAuth();
+  const { isAuthenticated } = useAuth();
   const [learnedText, setLearnedText] = useState('');
   const [notesText, setNotesText] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
   // Load notes
   useEffect(() => {
-    if (!user) return;
+    if (!isAuthenticated) return;
     
-    fetchDayNote(user.id, date).then((note) => {
+    getDayNote(date).then((note) => {
       if (note) {
         setLearnedText(note.learnedText);
         setNotesText(note.notesText);
@@ -33,33 +33,32 @@ export function DayNotes({ date, dateObj, compact = false }: DayNotesProps) {
         setNotesText('');
       }
     }).catch(console.error);
-  }, [user, date]);
+  }, [isAuthenticated, date]);
 
   // Autosave with debounce
   const saveNotes = useCallback(async (learned: string, notes: string) => {
-    if (!user) return;
+    if (!isAuthenticated) return;
     
     setIsSaving(true);
     try {
-      await upsertDayNote(user.id, date, learned, notes);
-      await refreshSyncStatus();
+      await saveDayNote(date, learned, notes);
     } catch (error) {
       console.error('Error saving notes:', error);
     }
     setTimeout(() => setIsSaving(false), 500);
-  }, [user, date, refreshSyncStatus]);
+  }, [isAuthenticated, date]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (user && (learnedText || notesText)) {
+      if (isAuthenticated && (learnedText || notesText)) {
         saveNotes(learnedText, notesText);
       }
     }, 800);
 
     return () => clearTimeout(timer);
-  }, [learnedText, notesText, saveNotes, user]);
+  }, [learnedText, notesText, saveNotes, isAuthenticated]);
 
-  if (!user) return null;
+  if (!isAuthenticated) return null;
 
   if (compact) {
     return (

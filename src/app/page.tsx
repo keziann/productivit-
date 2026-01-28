@@ -2,21 +2,19 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { DailyTasks } from '@/components/DailyTasks';
 import { DayNotes } from '@/components/DayNotes';
 import { DayStatsCards } from '@/components/StatsCards';
 import { TaskStatsList } from '@/components/TaskStatsList';
-import { SyncCard } from '@/components/SyncCard';
 import { MotivationCard } from '@/components/MotivationCard';
 import { useAuth } from '@/components/AuthProvider';
 import {
-  fetchActiveTasks,
-  fetchEntriesForDate,
-  fetchEntries,
-  fetchUserSettings,
-  updateMotivationImage
+  getActiveTasks,
+  getEntriesForDate,
+  getEntries,
+  getUserSettings,
+  saveMotivationImage
 } from '@/lib/data';
 import type { Task, Entry } from '@/lib/db';
 import {
@@ -29,8 +27,7 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
 export default function DashboardPage() {
-  const { user, syncStatus, forceSync } = useAuth();
-  const router = useRouter();
+  const { isAuthenticated } = useAuth();
   
   const [tasks, setTasks] = useState<Task[]>([]);
   const [todayEntries, setTodayEntries] = useState<Entry[]>([]);
@@ -38,21 +35,20 @@ export default function DashboardPage() {
   const [statsRange, setStatsRange] = useState<'7d' | '30d' | 'all'>('30d');
   const [motivationImage, setMotivationImage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSyncing, setIsSyncing] = useState(false);
 
   const today = new Date();
   const todayStr = formatDate(today);
 
   const loadData = useCallback(async () => {
-    if (!user) return;
+    if (!isAuthenticated) return;
     
     setIsLoading(true);
     try {
       const [tasksData, todayData, allData, settings] = await Promise.all([
-        fetchActiveTasks(user.id),
-        fetchEntriesForDate(user.id, todayStr),
-        fetchEntries(user.id),
-        fetchUserSettings(user.id)
+        getActiveTasks(),
+        getEntriesForDate(todayStr),
+        getEntries(),
+        getUserSettings()
       ]);
       setTasks(tasksData);
       setTodayEntries(todayData);
@@ -63,41 +59,27 @@ export default function DashboardPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [user, todayStr]);
+  }, [isAuthenticated, todayStr]);
 
   useEffect(() => {
-    if (user) {
+    if (isAuthenticated) {
       loadData();
       // Refresh every 30 seconds
       const interval = setInterval(loadData, 30000);
       return () => clearInterval(interval);
     }
-  }, [user, loadData]);
-
-  // Redirect if not logged in
-  useEffect(() => {
-    if (!user) {
-      router.push('/login');
-    }
-  }, [user, router]);
-
-  const handleForceSync = async () => {
-    setIsSyncing(true);
-    await forceSync();
-    await loadData();
-    setIsSyncing(false);
-  };
+  }, [isAuthenticated, loadData]);
 
   const handleMotivationImageChange = async (url: string | null) => {
-    if (!user) return;
+    if (!isAuthenticated) return;
     setMotivationImage(url);
-    await updateMotivationImage(user.id, url);
+    await saveMotivationImage(url);
   };
 
   const dayStats = calculateDayStats(todayEntries, tasks);
   const taskStats = getTaskStatsByRange(tasks, allEntries, statsRange);
 
-  if (!user) {
+  if (!isAuthenticated) {
     return null;
   }
 
@@ -137,7 +119,7 @@ export default function DashboardPage() {
         </Link>
       </div>
 
-      {/* Stats grid with Motivation image and Sync card */}
+      {/* Stats grid with Motivation image */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <DayStatsCards dayStats={dayStats} totalTasks={tasks.length} />
         
@@ -145,15 +127,6 @@ export default function DashboardPage() {
         <MotivationCard
           imageUrl={motivationImage}
           onImageChange={handleMotivationImageChange}
-        />
-      </div>
-
-      {/* Sync card (mobile: below stats, desktop: in right column) */}
-      <div className="lg:hidden">
-        <SyncCard
-          syncStatus={syncStatus}
-          onForceSync={handleForceSync}
-          isLoading={isSyncing}
         />
       </div>
 
@@ -167,15 +140,6 @@ export default function DashboardPage() {
 
         {/* Right column */}
         <div className="space-y-6">
-          {/* Sync card for desktop */}
-          <div className="hidden lg:block">
-            <SyncCard
-              syncStatus={syncStatus}
-              onForceSync={handleForceSync}
-              isLoading={isSyncing}
-            />
-          </div>
-          
           <TaskStatsList
             stats={taskStats}
             range={statsRange}
