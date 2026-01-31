@@ -5,8 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Loader2, Lock } from 'lucide-react';
-
-const CORRECT_PIN = '0205';
+import { validatePin, USER_ID_STORAGE_KEY } from '@/lib/users';
 
 export default function LoginPage() {
   const [pin, setPin] = useState(['', '', '', '']);
@@ -70,13 +69,14 @@ export default function LoginPage() {
     }
   };
 
-  const checkPin = (fullPin: string) => {
+  const   checkPin = (fullPin: string) => {
     setIsLoading(true);
-    
-    // Small delay for UX
+
     setTimeout(() => {
-      if (fullPin === CORRECT_PIN) {
+      const userId = validatePin(fullPin);
+      if (userId) {
         localStorage.setItem('habit-tracker-auth', 'true');
+        localStorage.setItem(USER_ID_STORAGE_KEY, userId);
         router.push('/');
       } else {
         setError(true);
