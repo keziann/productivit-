@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { USER_ID_STORAGE_KEY } from '@/lib/users';
+import { USER_ID_STORAGE_KEY, USER_NAME_STORAGE_KEY } from '@/lib/users';
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -57,6 +57,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(() => {
     localStorage.removeItem('habit-tracker-auth');
     localStorage.removeItem(USER_ID_STORAGE_KEY);
+    localStorage.removeItem(USER_NAME_STORAGE_KEY);
     setIsAuthenticated(false);
     router.push('/login');
   }, [router]);

@@ -25,6 +25,7 @@ import {
 import { Calendar, ArrowRight } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { getCurrentUserName } from '@/lib/users';
 
 export default function DashboardPage() {
   const { isAuthenticated } = useAuth();
@@ -104,7 +105,7 @@ export default function DashboardPage() {
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold">
-            Bonjour 👋
+            Bonjour {getCurrentUserName() ? `${getCurrentUserName()} ` : ''}👋
           </h1>
           <p className="text-muted-foreground mt-1">
             {format(today, "EEEE d MMMM yyyy", { locale: fr })}
