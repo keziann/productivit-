@@ -3,41 +3,50 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { TaskToggleCompact } from './TaskToggle';
 import { useAuth } from './AuthProvider';
 import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
-import {
-  getActiveTasks,
-  getEntries,
-  saveEntry
-} from '@/lib/data';
+import { getActiveTasks, getEntries } from '@/lib/data';
 import type { Task, Entry } from '@/lib/db';
 import {
-  getWeekInfo,
+  getMonthInfo,
   formatDate,
   getDayName,
-  getPreviousWeek,
-  getNextWeek,
-  calculateTaskWeekStats,
+  getPreviousMonth,
+  getNextMonth,
+  calculateTaskMonthStats,
   calculateTaskGlobalStats,
-  type WeekInfo
+  type MonthInfo
 } from '@/lib/stats';
 import { cn } from '@/lib/utils';
-import { format, isToday, isFuture } from 'date-fns';
+import { format, isToday } from 'date-fns';
+import { fr } from 'date-fns/locale';
 
-const STICKY_LEFT_Z = 10;
-const STICKY_RIGHT_Z = 10;
-const PERCENT_COL_WIDTH = 48; // w-12
+const PERCENT_COL_WIDTH = 44;
 
-interface WeekGridProps {
+interface MonthGridProps {
   initialDate?: Date;
 }
 
-export function WeekGrid({ initialDate = new Date() }: WeekGridProps) {
+// Read-only cell: small colored square (green / red / gray)
+function MonthCell({ value }: { value: 1 | 0 | null }) {
+  return (
+    <div
+      className={cn(
+        'w-5 h-5 sm:w-6 sm:h-6 rounded-sm shrink-0 mx-auto',
+        value === 1 && 'bg-emerald-500',
+        value === 0 && 'bg-red-500',
+        value === null && 'bg-muted border border-dashed border-muted-foreground/30'
+      )}
+      title={value === 1 ? 'Fait' : value === 0 ? 'Raté' : 'Non renseigné'}
+      aria-hidden
+    />
+  );
+}
+
+export function MonthGrid({ initialDate = new Date() }: MonthGridProps) {
   const { isAuthenticated } = useAuth();
   const [currentDate, setCurrentDate] = useState(initialDate);
-  const [weekInfo, setWeekInfo] = useState<WeekInfo>(() => getWeekInfo(initialDate));
+  const [monthInfo, setMonthInfo] = useState<MonthInfo>(() => getMonthInfo(initialDate));
   const [tasks, setTasks] = useState<Task[]>([]);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [allEntries, setAllEntries] = useState<Entry[]>([]);
@@ -47,8 +56,8 @@ export function WeekGrid({ initialDate = new Date() }: WeekGridProps) {
     if (!isAuthenticated) return;
 
     setIsLoading(true);
-    const info = getWeekInfo(currentDate);
-    setWeekInfo(info);
+    const info = getMonthInfo(currentDate);
+    setMonthInfo(info);
 
     const startDate = formatDate(info.startDate);
     const endDate = formatDate(info.endDate);
@@ -59,15 +68,15 @@ export function WeekGrid({ initialDate = new Date() }: WeekGridProps) {
         getEntries()
       ]);
 
-      const weekEntries = allEntriesData.filter(
+      const monthEntries = allEntriesData.filter(
         e => e.date >= startDate && e.date <= endDate
       );
 
       setTasks(tasksData);
-      setEntries(weekEntries);
+      setEntries(monthEntries);
       setAllEntries(allEntriesData);
     } catch (error) {
-      console.error('Error loading week data:', error);
+      console.error('Error loading month data:', error);
     } finally {
       setIsLoading(false);
     }
@@ -77,48 +86,9 @@ export function WeekGrid({ initialDate = new Date() }: WeekGridProps) {
     loadData();
   }, [loadData]);
 
-  const goToPreviousWeek = () => setCurrentDate(getPreviousWeek(currentDate));
-  const goToNextWeek = () => setCurrentDate(getNextWeek(currentDate));
+  const goToPreviousMonth = () => setCurrentDate(getPreviousMonth(currentDate));
+  const goToNextMonth = () => setCurrentDate(getNextMonth(currentDate));
   const goToToday = () => setCurrentDate(new Date());
-
-  const handleToggle = async (taskId: string, date: string, currentValue: 1 | 0 | null) => {
-    if (!isAuthenticated) return;
-
-    let newValue: 1 | 0 | null;
-    if (currentValue === null) newValue = 1;
-    else if (currentValue === 1) newValue = 0;
-    else newValue = null;
-
-    setEntries((prev) => {
-      const existing = prev.find(e => e.taskId === taskId && e.date === date);
-      if (existing) {
-        return prev.map(e =>
-          e.taskId === taskId && e.date === date
-            ? { ...e, value: newValue }
-            : e
-        );
-      }
-      return [...prev, { taskId, date, value: newValue, updatedAt: new Date() } as Entry];
-    });
-
-    setAllEntries((prev) => {
-      const existing = prev.find(e => e.taskId === taskId && e.date === date);
-      if (existing) {
-        return prev.map(e =>
-          e.taskId === taskId && e.date === date
-            ? { ...e, value: newValue }
-            : e
-        );
-      }
-      return [...prev, { taskId, date, value: newValue, updatedAt: new Date() } as Entry];
-    });
-
-    try {
-      await saveEntry(taskId, date, newValue);
-    } catch (error) {
-      console.error('Error updating entry:', error);
-    }
-  };
 
   const getEntryValue = (taskId: string, date: string): 1 | 0 | null => {
     const entry = entries.find(e => e.taskId === taskId && e.date === date);
@@ -127,16 +97,12 @@ export function WeekGrid({ initialDate = new Date() }: WeekGridProps) {
 
   if (!isAuthenticated) return null;
 
-  const weekDates = weekInfo.days.map(d => formatDate(d));
-  const weekStats = tasks.map(task => ({
+  const monthDates = monthInfo.days.map(d => formatDate(d));
+  const monthStats = tasks.map(task => ({
     task,
-    week: calculateTaskWeekStats(task.id, entries, weekDates),
+    month: calculateTaskMonthStats(task.id, entries, monthDates),
     global: calculateTaskGlobalStats(task.id, allEntries)
   }));
-
-  const totalWeekCompleted = weekStats.reduce((sum, s) => sum + s.week.completed, 0);
-  const totalWeekEntries = weekStats.reduce((sum, s) => sum + s.week.total, 0);
-  const weekAverage = totalWeekEntries > 0 ? Math.round((totalWeekCompleted / totalWeekEntries) * 100) : 0;
 
   if (isLoading) {
     return (
@@ -152,25 +118,24 @@ export function WeekGrid({ initialDate = new Date() }: WeekGridProps) {
 
   return (
     <div className="space-y-4">
-      {/* Header: framed week selector + actions */}
+      {/* Header: framed month selector + actions */}
       <Card className="overflow-hidden">
         <CardContent className="p-4 sm:p-5">
           <div className="flex flex-col gap-4">
-            {/* Week selector: well framed */}
             <div className="flex items-center justify-center gap-2">
               <Button
                 variant="outline"
                 size="icon"
                 className="shrink-0 h-9 w-9 rounded-lg border-2"
-                onClick={goToPreviousWeek}
-                aria-label="Semaine précédente"
+                onClick={goToPreviousMonth}
+                aria-label="Mois précédent"
               >
                 <ChevronLeft className="w-4 h-4" />
               </Button>
               <div className="min-w-0 flex-1 flex justify-center">
-                <div className="inline-flex items-center justify-center rounded-xl border-2 border-border bg-muted/50 px-4 py-2.5 shadow-sm">
-                  <span className="text-sm font-semibold tabular-nums text-foreground truncate">
-                    {weekInfo.label}
+                <div className="inline-flex items-center justify-center rounded-xl border-2 border-border bg-muted/50 px-4 py-2.5 shadow-sm capitalize">
+                  <span className="text-sm font-semibold text-foreground truncate">
+                    {monthInfo.label}
                   </span>
                 </div>
               </div>
@@ -178,15 +143,13 @@ export function WeekGrid({ initialDate = new Date() }: WeekGridProps) {
                 variant="outline"
                 size="icon"
                 className="shrink-0 h-9 w-9 rounded-lg border-2"
-                onClick={goToNextWeek}
-                aria-label="Semaine suivante"
+                onClick={goToNextMonth}
+                aria-label="Mois suivant"
               >
                 <ChevronRight className="w-4 h-4" />
               </Button>
             </div>
-
-            {/* Aujourd'hui + Moyenne */}
-            <div className="flex items-center justify-center gap-3 flex-wrap">
+            <div className="flex items-center justify-center">
               <Button
                 variant="outline"
                 size="sm"
@@ -196,63 +159,57 @@ export function WeekGrid({ initialDate = new Date() }: WeekGridProps) {
                 <Calendar className="w-4 h-4" />
                 Aujourd&apos;hui
               </Button>
-              <div className="rounded-lg border-2 border-border bg-muted/50 px-4 py-2 shadow-sm">
-                <span className="text-sm font-medium text-muted-foreground">Moyenne </span>
-                <span className="text-sm font-bold tabular-nums text-foreground">{weekAverage}%</span>
-              </div>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Grid: scrollable with sticky task names (left) and percentages (right) */}
+      {/* Grid: read-only, sticky left (task names) and right (percentages) */}
       <Card>
         <CardContent className="p-0">
+          <p className="text-xs text-muted-foreground px-4 py-2 border-b bg-muted/20">
+            Vue lecture seule. Modifiez les tâches dans la vue Semaine.
+          </p>
           <div className="overflow-x-auto overflow-y-visible -mx-px" style={{ WebkitOverflowScrolling: 'touch' }}>
-            <table className="w-full border-collapse" style={{ minWidth: 480 }}>
+            <table className="w-full border-collapse" style={{ minWidth: 320 }}>
               <thead>
                 <tr className="border-b bg-muted/30">
                   <th
-                    className="text-left p-2 sm:p-3 font-medium text-xs sm:text-sm w-[100px] sm:w-36 shrink-0 sticky left-0 z-20 bg-muted/50 backdrop-blur-sm border-r"
+                    className="text-left p-2 font-medium text-xs w-24 sm:w-32 shrink-0 sticky left-0 z-20 bg-muted/50 backdrop-blur-sm border-r"
                     scope="col"
                   >
                     Tâche
                   </th>
-                  {weekInfo.days.map((day) => {
-                    const dateStr = formatDate(day);
+                  {monthInfo.days.map((day) => {
                     const dayIsToday = isToday(day);
                     return (
                       <th
-                        key={dateStr}
+                        key={formatDate(day)}
                         className={cn(
-                          'text-center p-1.5 sm:p-2 font-medium text-xs w-11 sm:w-14 shrink-0',
+                          'text-center p-1 font-medium w-5 sm:w-6 shrink-0',
                           dayIsToday && 'bg-emerald-500/20 dark:bg-emerald-950/40'
                         )}
                         scope="col"
+                        title={format(day, 'd MMM', { locale: fr })}
                       >
-                        <div className="uppercase tracking-wide text-muted-foreground text-[10px] sm:text-xs">
-                          {getDayName(day)}
-                        </div>
-                        <div
-                          className={cn(
-                            'text-xs font-semibold mt-0.5 tabular-nums',
-                            dayIsToday && 'text-emerald-600 dark:text-emerald-400'
-                          )}
-                        >
+                        <span className={cn(
+                          'text-[9px] sm:text-[10px] tabular-nums text-muted-foreground',
+                          dayIsToday && 'text-emerald-600 dark:text-emerald-400 font-bold'
+                        )}>
                           {format(day, 'd')}
-                        </div>
+                        </span>
                       </th>
                     );
                   })}
                   <th
-                    className="text-center p-2 font-medium text-xs w-12 shrink-0 sticky right-[48px] z-20 bg-muted/50 backdrop-blur-sm border-l border-r"
+                    className="text-center p-2 font-medium text-xs w-11 shrink-0 sticky right-[44px] z-20 bg-muted/50 backdrop-blur-sm border-l border-r"
                     style={{ width: PERCENT_COL_WIDTH }}
                     scope="col"
                   >
-                    Sem.
+                    Mois
                   </th>
                   <th
-                    className="text-center p-2 font-medium text-xs w-12 shrink-0 sticky right-0 z-20 bg-muted/50 backdrop-blur-sm border-l"
+                    className="text-center p-2 font-medium text-xs w-11 shrink-0 sticky right-0 z-20 bg-muted/50 backdrop-blur-sm border-l"
                     style={{ width: PERCENT_COL_WIDTH }}
                     scope="col"
                   >
@@ -261,56 +218,53 @@ export function WeekGrid({ initialDate = new Date() }: WeekGridProps) {
                 </tr>
               </thead>
               <tbody>
-                {weekStats.map(({ task, week, global }) => (
+                {monthStats.map(({ task, month, global }) => (
                   <tr key={task.id} className="border-b last:border-0 hover:bg-muted/20">
-                    <td className="p-2 sm:p-3 sticky left-0 z-10 bg-card border-r shrink-0 w-[100px] sm:w-36">
-                      <div className="font-medium text-xs sm:text-sm truncate max-w-[88px] sm:max-w-[140px]" title={task.name}>
+                    <td className="p-2 sticky left-0 z-10 bg-card border-r shrink-0 w-24 sm:w-32">
+                      <div className="font-medium text-xs truncate max-w-[88px] sm:max-w-[120px]" title={task.name}>
                         {task.name}
                       </div>
                       {task.category && (
-                        <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 truncate max-w-[88px] sm:max-w-[140px]">
+                        <div className="text-[10px] text-muted-foreground mt-0.5 truncate max-w-[88px] sm:max-w-[120px]">
                           {task.category}
                         </div>
                       )}
                     </td>
-                    {weekInfo.days.map((day) => {
+                    {monthInfo.days.map((day) => {
                       const dateStr = formatDate(day);
                       const value = getEntryValue(task.id, dateStr);
                       const dayIsToday = isToday(day);
-                      const dayIsFuture = isFuture(day);
-
                       return (
                         <td
                           key={dateStr}
                           className={cn(
-                            'p-1 sm:p-1.5 shrink-0 w-11 sm:w-14',
+                            'p-0.5 sm:p-1 shrink-0 w-5 sm:w-6',
                             dayIsToday && 'bg-emerald-500/10 dark:bg-emerald-950/30'
                           )}
                         >
-                          <TaskToggleCompact
-                            value={value}
-                            onChange={() => handleToggle(task.id, dateStr, value)}
-                            disabled={dayIsFuture}
-                          />
+                          <div className="flex items-center justify-center py-0.5">
+                            <MonthCell value={value} />
+                          </div>
                         </td>
                       );
                     })}
                     <td
-                      className="p-1.5 text-center sticky right-[48px] z-10 bg-card border-l border-r shrink-0"
+                      className="p-1 text-center sticky right-[44px] z-10 bg-card border-l border-r shrink-0"
                       style={{ width: PERCENT_COL_WIDTH }}
                     >
-                      <Badge
-                        variant={week.rate >= 70 ? 'default' : week.rate >= 40 ? 'secondary' : 'destructive'}
+                      <span
                         className={cn(
-                          'text-[10px] font-mono px-1.5 py-0',
-                          week.rate >= 70 && 'bg-emerald-500 hover:bg-emerald-600'
+                          'text-[10px] font-mono font-medium',
+                          month.rate >= 70 ? 'text-emerald-600 dark:text-emerald-400' :
+                          month.rate >= 40 ? 'text-yellow-600 dark:text-yellow-400' :
+                          'text-red-600 dark:text-red-400'
                         )}
                       >
-                        {week.total > 0 ? `${week.rate}%` : '—'}
-                      </Badge>
+                        {month.total > 0 ? `${month.rate}%` : '—'}
+                      </span>
                     </td>
                     <td
-                      className="p-1.5 text-center sticky right-0 z-10 bg-card border-l shrink-0"
+                      className="p-1 text-center sticky right-0 z-10 bg-card border-l shrink-0"
                       style={{ width: PERCENT_COL_WIDTH }}
                     >
                       <span

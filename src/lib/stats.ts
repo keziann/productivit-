@@ -1,4 +1,4 @@
-import { format, startOfWeek, endOfWeek, eachDayOfInterval, subDays, getISOWeek, getYear } from 'date-fns';
+import { format, startOfWeek, endOfWeek, eachDayOfInterval, subDays, addDays, getISOWeek, getYear, startOfMonth, endOfMonth, addMonths, subMonths } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import type { Task, Entry } from './db';
 
@@ -25,6 +25,15 @@ export interface DayStats {
 export interface WeekInfo {
   weekNumber: number;
   year: number;
+  startDate: Date;
+  endDate: Date;
+  label: string;
+  days: Date[];
+}
+
+export interface MonthInfo {
+  year: number;
+  month: number;
   startDate: Date;
   endDate: Date;
   label: string;
@@ -202,7 +211,48 @@ export function getPreviousWeek(date: Date): Date {
 }
 
 export function getNextWeek(date: Date): Date {
-  return subDays(endOfWeek(date, { weekStartsOn: 1 }), -1);
+  return addDays(endOfWeek(date, { weekStartsOn: 1 }), 1);
+}
+
+// Month info and navigation
+export function getMonthInfo(date: Date): MonthInfo {
+  const start = startOfMonth(date);
+  const end = endOfMonth(date);
+  const days = eachDayOfInterval({ start, end });
+  return {
+    year: getYear(start),
+    month: date.getMonth() + 1,
+    startDate: start,
+    endDate: end,
+    label: format(date, 'MMMM yyyy', { locale: fr }),
+    days
+  };
+}
+
+export function getPreviousMonth(date: Date): Date {
+  return subMonths(date, 1);
+}
+
+export function getNextMonth(date: Date): Date {
+  return addMonths(date, 1);
+}
+
+// Calculate month stats for a task
+export function calculateTaskMonthStats(
+  taskId: string,
+  entries: Entry[],
+  monthDates: string[]
+): { completed: number; total: number; rate: number } {
+  const taskEntries = entries.filter(
+    e => e.taskId === taskId && monthDates.includes(e.date) && e.value !== null
+  );
+  const completed = taskEntries.filter(e => e.value === 1).length;
+  const total = taskEntries.length;
+  return {
+    completed,
+    total,
+    rate: total > 0 ? Math.round((completed / total) * 100) : 0
+  };
 }
 
 // Task stats by range
