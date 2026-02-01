@@ -18,7 +18,7 @@ export const saveTask = (task: Partial<Task> & { id: string; name: string }) => 
 export const removeTask = (taskId: string) => deleteTaskRemote(getCurrentUserId(), taskId);
 export const getEntries = (startDate?: string, endDate?: string) => fetchEntries(getCurrentUserId(), startDate, endDate);
 export const getEntriesForDate = (date: string) => fetchEntriesForDate(getCurrentUserId(), date);
-export const saveEntry = (taskId: string, date: string, value: 1 | 0 | null) => upsertEntry(getCurrentUserId(), taskId, date, value);
+export const saveEntry = (taskId: string, date: string, value: 1 | 0.5 | 0 | null) => upsertEntry(getCurrentUserId(), taskId, date, value);
 export const getDayNote = (date: string) => fetchDayNote(getCurrentUserId(), date);
 export const getDayNotes = (startDate: string, endDate: string) => fetchDayNotes(getCurrentUserId(), startDate, endDate);
 export const saveDayNote = (date: string, learnedText: string, notesText: string) => upsertDayNote(getCurrentUserId(), date, learnedText, notesText);
@@ -63,6 +63,7 @@ export async function upsertTask(userId: string, task: Partial<Task> & { id: str
     active: task.active ?? true,
     schedule: task.schedule || 'daily',
     sort_index: task.order ?? 0,
+    allow_partial: task.allowPartial ?? false,
     updated_at: new Date().toISOString()
   };
 
@@ -141,7 +142,7 @@ export async function upsertEntry(
   userId: string,
   taskId: string,
   date: string,
-  value: 1 | 0 | null
+  value: 1 | 0.5 | 0 | null
 ): Promise<void> {
   const payload = {
     user_id: userId,
@@ -355,6 +356,7 @@ function dbTaskToTask(db: DBTask): Task {
     active: db.active,
     schedule: db.schedule as 'daily' | 'weekdays' | 'custom',
     order: db.sort_index,
+    allowPartial: db.allow_partial ?? false,
     createdAt: new Date(db.created_at)
   };
 }
@@ -364,7 +366,7 @@ function dbEntryToEntry(db: DBEntry): Entry {
     id: parseInt(db.id.slice(0, 8), 16), // Convert UUID to number for compatibility
     date: db.date,
     taskId: db.task_id,
-    value: db.value as 1 | 0 | null,
+    value: db.value as 1 | 0.5 | 0 | null,
     updatedAt: new Date(db.updated_at)
   };
 }

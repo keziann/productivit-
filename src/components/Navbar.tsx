@@ -9,7 +9,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from './AuthProvider';
 
 const navItems = [
-  { href: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/', label: 'Accueil', icon: LayoutDashboard },
   { href: '/week', label: 'Semaine', icon: Calendar },
   { href: '/tasks', label: 'Tâches', icon: ListTodo },
   { href: '/settings', label: 'Réglages', icon: Settings },
@@ -60,32 +60,32 @@ export function Navbar() {
   return (
     <>
       {/* Desktop navbar */}
-      <nav className="hidden md:flex fixed top-0 left-0 right-0 h-16 bg-background/80 backdrop-blur-lg border-b border-border z-50">
+      <nav className="hidden md:flex fixed top-0 left-0 right-0 h-16 bg-background/80 backdrop-blur-xl border-b border-border/50 z-50">
         <div className="max-w-6xl mx-auto w-full flex items-center justify-between px-6">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
               <span className="text-white font-bold text-sm">HT</span>
             </div>
-            <span className="font-semibold text-lg">Habit Tracker</span>
-            
+            <span className="font-bold text-lg">Habit Tracker</span>
+
             {/* Offline indicator */}
             {!isOnline && (
-              <span className="flex items-center gap-1 text-xs text-yellow-600 dark:text-yellow-400 ml-2">
-                <CloudOff className="w-3 h-3" />
-                Hors ligne
-              </span>
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400">
+                <CloudOff className="w-3.5 h-3.5" />
+                <span className="text-xs font-medium">Hors ligne</span>
+              </div>
             )}
           </div>
-          
+
           <div className="flex items-center gap-1">
             {navItems.map(({ href, label, icon: Icon }) => (
               <Link key={href} href={href}>
                 <Button
-                  variant={pathname === href ? 'secondary' : 'ghost'}
+                  variant={pathname === href ? 'default' : 'ghost'}
                   size="sm"
                   className={cn(
-                    'gap-2',
-                    pathname === href && 'bg-secondary'
+                    'gap-2 rounded-xl h-10',
+                    pathname === href && 'shadow-md'
                   )}
                 >
                   <Icon className="w-4 h-4" />
@@ -95,43 +95,69 @@ export function Navbar() {
             ))}
           </div>
 
-          <Button variant="ghost" size="icon" onClick={toggleTheme}>
-            {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="rounded-xl h-10 w-10"
+            onClick={toggleTheme}
+          >
+            {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
           </Button>
         </div>
       </nav>
 
       {/* Mobile bottom navbar */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-background/95 backdrop-blur-lg border-t border-border z-50 safe-area-bottom">
-        <div className="flex items-center justify-around h-full px-2">
-          {navItems.slice(0, 4).map(({ href, label, icon: Icon }) => (
-            <Link key={href} href={href} className="flex-1">
-              <div
-                className={cn(
-                  'flex flex-col items-center justify-center gap-0.5 py-2 rounded-lg transition-colors',
-                  pathname === href 
-                    ? 'text-emerald-600 dark:text-emerald-400' 
-                    : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                <Icon className="w-5 h-5" />
-                <span className="text-[10px] font-medium">{label}</span>
-              </div>
-            </Link>
-          ))}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-xl border-t border-border/50 z-50">
+        <div
+          className="flex items-stretch h-[70px] px-2"
+          style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+        >
+          {navItems.map(({ href, label, icon: Icon }) => {
+            const isActive = pathname === href;
+            return (
+              <Link key={href} href={href} className="flex-1">
+                <div
+                  className={cn(
+                    'flex flex-col items-center justify-center h-full gap-1 relative',
+                    'transition-all duration-200 touch-manipulation',
+                    isActive ? 'text-primary' : 'text-muted-foreground'
+                  )}
+                >
+                  {/* Active indicator */}
+                  {isActive && (
+                    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-12 h-1 bg-primary rounded-b-full" />
+                  )}
+                  <div className={cn(
+                    'flex items-center justify-center w-10 h-10 rounded-xl transition-all',
+                    isActive && 'bg-primary/10 scale-110'
+                  )}>
+                    <Icon className={cn('w-5 h-5', isActive && 'text-primary')} />
+                  </div>
+                  <span className={cn(
+                    'text-[10px] font-medium',
+                    isActive && 'text-primary font-semibold'
+                  )}>
+                    {label}
+                  </span>
+                </div>
+              </Link>
+            );
+          })}
           <button
             onClick={toggleTheme}
-            className="flex flex-col items-center justify-center gap-0.5 py-2 px-3 text-muted-foreground"
+            className="flex-1 flex flex-col items-center justify-center gap-1 text-muted-foreground touch-manipulation"
           >
-            {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            <div className="flex items-center justify-center w-10 h-10 rounded-xl">
+              {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            </div>
             <span className="text-[10px] font-medium">Thème</span>
           </button>
         </div>
-        
+
         {/* Offline banner for mobile */}
         {!isOnline && (
-          <div className="absolute -top-6 left-0 right-0 bg-yellow-500 text-yellow-900 text-xs text-center py-1">
-            <CloudOff className="w-3 h-3 inline mr-1" />
+          <div className="absolute -top-8 left-0 right-0 bg-yellow-500 text-yellow-900 text-xs text-center py-2 font-medium flex items-center justify-center gap-1.5">
+            <CloudOff className="w-3.5 h-3.5" />
             Mode hors ligne
           </div>
         )}

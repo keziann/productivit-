@@ -1,22 +1,32 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import { Check, X } from 'lucide-react';
+import { Check, X, Minus } from 'lucide-react';
 
 interface TaskToggleProps {
-  value: 1 | 0 | null;
-  onChange: (value: 1 | 0 | null) => void;
+  value: 1 | 0.5 | 0 | null;
+  onChange: (value: 1 | 0.5 | 0 | null) => void;
   size?: 'sm' | 'md' | 'lg';
   disabled?: boolean;
+  allowPartial?: boolean; // Si true, permet la valeur 0.5 (orange)
 }
 
-export function TaskToggle({ value, onChange, size = 'md', disabled = false }: TaskToggleProps) {
+export function TaskToggle({ value, onChange, size = 'md', disabled = false, allowPartial = false }: TaskToggleProps) {
   const handleClick = () => {
     if (disabled) return;
-    // Cycle: null -> 1 -> 0 -> null
-    if (value === null) onChange(1);
-    else if (value === 1) onChange(0);
-    else onChange(null);
+
+    if (allowPartial) {
+      // Cycle: null -> 1 -> 0.5 -> 0 -> null
+      if (value === null) onChange(1);
+      else if (value === 1) onChange(0.5);
+      else if (value === 0.5) onChange(0);
+      else onChange(null);
+    } else {
+      // Cycle: null -> 1 -> 0 -> null
+      if (value === null) onChange(1);
+      else if (value === 1) onChange(0);
+      else onChange(null);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -27,9 +37,9 @@ export function TaskToggle({ value, onChange, size = 'md', disabled = false }: T
   };
 
   const sizeClasses = {
-    sm: 'w-8 h-8',
-    md: 'w-10 h-10',
-    lg: 'w-12 h-12'
+    sm: 'w-9 h-9',
+    md: 'w-11 h-11',
+    lg: 'w-14 h-14'
   };
 
   const iconSizes = {
@@ -45,57 +55,66 @@ export function TaskToggle({ value, onChange, size = 'md', disabled = false }: T
       onKeyDown={handleKeyDown}
       disabled={disabled}
       className={cn(
-        'rounded-lg flex items-center justify-center transition-all duration-200 font-medium',
-        'focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500',
-        'active:scale-95',
+        'rounded-xl flex items-center justify-center transition-all duration-200 font-medium',
+        'focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary',
+        'active:scale-90 touch-manipulation',
         sizeClasses[size],
         {
           // Null state - empty
-          'bg-secondary hover:bg-secondary/80 border-2 border-dashed border-muted-foreground/30': value === null,
+          'bg-muted hover:bg-muted/80 border-2 border-dashed border-muted-foreground/20': value === null,
           // Success state - green
-          'bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm shadow-emerald-500/30': value === 1,
+          'bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/25': value === 1,
+          // Partial state - orange
+          'bg-orange-500 hover:bg-orange-600 text-white shadow-lg shadow-orange-500/25': value === 0.5,
           // Failed state - red
-          'bg-red-500 hover:bg-red-600 text-white shadow-sm shadow-red-500/30': value === 0,
+          'bg-red-500 hover:bg-red-600 text-white shadow-lg shadow-red-500/25': value === 0,
           'opacity-50 cursor-not-allowed': disabled
         }
       )}
-      aria-label={value === 1 ? 'Fait' : value === 0 ? 'Raté' : 'Non renseigné'}
+      aria-label={
+        value === 1 ? 'Fait' :
+        value === 0.5 ? 'Partiel' :
+        value === 0 ? 'Raté' :
+        'Non renseigné'
+      }
     >
       {value === 1 && <Check className={iconSizes[size]} strokeWidth={3} />}
+      {value === 0.5 && <Minus className={iconSizes[size]} strokeWidth={3} />}
       {value === 0 && <X className={iconSizes[size]} strokeWidth={3} />}
     </button>
   );
 }
 
 // Compact version for the week grid
-export function TaskToggleCompact({ value, onChange, disabled = false }: Omit<TaskToggleProps, 'size'>) {
-  const handleClick = () => {
-    if (disabled) return;
-    if (value === null) onChange(1);
-    else if (value === 1) onChange(0);
-    else onChange(null);
-  };
+interface TaskToggleCompactProps {
+  value: 1 | 0.5 | 0 | null;
+  onChange: () => void;
+  disabled?: boolean;
+  allowPartial?: boolean;
+}
 
+export function TaskToggleCompact({ value, onChange, disabled = false }: TaskToggleCompactProps) {
   return (
     <button
       type="button"
-      onClick={handleClick}
+      onClick={onChange}
       disabled={disabled}
       className={cn(
-        'w-full h-10 rounded-md flex items-center justify-center transition-all duration-150',
-        'focus:outline-none focus:ring-2 focus:ring-inset focus:ring-emerald-500',
-        'active:scale-95',
+        'w-full h-11 rounded-lg flex items-center justify-center transition-all duration-150',
+        'focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary',
+        'active:scale-95 touch-manipulation',
         {
-          'bg-muted hover:bg-muted/80': value === null,
-          'bg-emerald-500 hover:bg-emerald-600 text-white': value === 1,
-          'bg-red-500 hover:bg-red-600 text-white': value === 0,
+          'bg-muted/60 hover:bg-muted': value === null,
+          'bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm': value === 1,
+          'bg-orange-500 hover:bg-orange-600 text-white shadow-sm': value === 0.5,
+          'bg-red-500 hover:bg-red-600 text-white shadow-sm': value === 0,
           'opacity-50 cursor-not-allowed': disabled
         }
       )}
     >
       {value === 1 && <Check className="w-4 h-4" strokeWidth={3} />}
+      {value === 0.5 && <Minus className="w-4 h-4" strokeWidth={3} />}
       {value === 0 && <X className="w-4 h-4" strokeWidth={3} />}
     </button>
   );
 }
-

@@ -7,10 +7,11 @@
 export const USER_ID_STORAGE_KEY = 'habit_tracker_user_id';
 export const USER_NAME_STORAGE_KEY = 'habit_tracker_user_name';
 
-// Toi = 0205 (Kezyah), ta copine = 0606 (Emy). Chaque user_id a ses propres tasks/entries/notes.
+// Chaque user_id a ses propres tasks/entries/notes.
 const PIN_TO_USER: { pin: string; userId: string; name: string }[] = [
   { pin: '0205', userId: '00000000-0000-0000-0000-000000000001', name: 'Kezyah' },
   { pin: '0606', userId: '00000000-0000-0000-0000-000000000002', name: 'Emy' },
+  { pin: '1912', userId: '00000000-0000-0000-0000-000000000003', name: 'Florian' },
 ];
 
 /** Retourne { userId, name } si le PIN est valide, sinon null. */

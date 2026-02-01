@@ -15,6 +15,7 @@ import { formatDate } from '@/lib/stats';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { ListChecks } from 'lucide-react';
 
 interface DailyTasksProps {
   date?: Date;
@@ -30,7 +31,7 @@ export function DailyTasks({ date = new Date() }: DailyTasksProps) {
 
   const loadData = useCallback(async () => {
     if (!isAuthenticated) return;
-    
+
     setIsLoading(true);
     try {
       const [tasksData, entriesData] = await Promise.all([
@@ -50,46 +51,56 @@ export function DailyTasks({ date = new Date() }: DailyTasksProps) {
     loadData();
   }, [loadData]);
 
-  const handleToggle = async (taskId: string, currentValue: 1 | 0 | null) => {
+  const handleToggle = async (task: Task, currentValue: 1 | 0.5 | 0 | null) => {
     if (!isAuthenticated) return;
-    
-    let newValue: 1 | 0 | null;
-    if (currentValue === null) newValue = 1;
-    else if (currentValue === 1) newValue = 0;
-    else newValue = null;
+
+    let newValue: 1 | 0.5 | 0 | null;
+
+    if (task.allowPartial) {
+      // Cycle: null -> 1 -> 0.5 -> 0 -> null
+      if (currentValue === null) newValue = 1;
+      else if (currentValue === 1) newValue = 0.5;
+      else if (currentValue === 0.5) newValue = 0;
+      else newValue = null;
+    } else {
+      // Cycle: null -> 1 -> 0 -> null
+      if (currentValue === null) newValue = 1;
+      else if (currentValue === 1) newValue = 0;
+      else newValue = null;
+    }
 
     // Optimistic update
     setEntries((prev) => {
-      const existing = prev.find(e => e.taskId === taskId);
+      const existing = prev.find(e => e.taskId === task.id);
       if (existing) {
         return prev.map(e =>
-          e.taskId === taskId
+          e.taskId === task.id
             ? { ...e, value: newValue }
             : e
         );
       }
-      return [...prev, { taskId, date: dateStr, value: newValue, updatedAt: new Date() } as Entry];
+      return [...prev, { taskId: task.id, date: dateStr, value: newValue, updatedAt: new Date() } as Entry];
     });
 
     // Send to Supabase (or queue if offline)
     try {
-      await saveEntry(taskId, dateStr, newValue);
+      await saveEntry(task.id, dateStr, newValue);
     } catch (error) {
       console.error('Error updating entry:', error);
     }
   };
 
-  const getEntryValue = (taskId: string): 1 | 0 | null => {
+  const getEntryValue = (taskId: string): 1 | 0.5 | 0 | null => {
     const entry = entries.find(e => e.taskId === taskId);
-    return entry?.value ?? null;
+    return (entry?.value as 1 | 0.5 | 0 | null) ?? null;
   };
 
   if (!isAuthenticated) return null;
 
   if (isLoading) {
     return (
-      <Card>
-        <CardContent className="py-8">
+      <Card className="overflow-hidden">
+        <CardContent className="py-12">
           <div className="flex items-center justify-center">
             <div className="animate-pulse text-muted-foreground">Chargement...</div>
           </div>
@@ -98,56 +109,88 @@ export function DailyTasks({ date = new Date() }: DailyTasksProps) {
     );
   }
 
+  const completedCount = entries.filter(e => e.value === 1).length;
+  const partialCount = entries.filter(e => e.value === 0.5).length;
+
   return (
-    <Card>
-      <CardHeader className="pb-3">
+    <Card className="overflow-hidden">
+      <CardHeader className="pb-3 bg-gradient-to-r from-primary/5 to-transparent">
         <CardTitle className="text-base flex items-center justify-between">
-          <span>Tâches du jour</span>
-          <Badge variant="outline" className="font-normal">
-            {format(date, 'EEEE d MMMM', { locale: fr })}
-          </Badge>
+          <span className="flex items-center gap-2">
+            <ListChecks className="w-5 h-5 text-primary" />
+            Tâches du jour
+          </span>
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary" className="font-normal bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+              {completedCount + partialCount * 0.5}/{tasks.length}
+            </Badge>
+            <Badge variant="outline" className="font-normal text-xs">
+              {format(date, 'EEE d MMM', { locale: fr })}
+            </Badge>
+          </div>
         </CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="p-0">
         {tasks.length === 0 ? (
-          <div className="text-center text-muted-foreground py-8 space-y-2">
+          <div className="text-center text-muted-foreground py-12 px-4 space-y-2">
             <p className="font-medium">Aucune tâche active</p>
             <p className="text-xs">
               Allez dans l'onglet "Tâches" pour créer vos premières habitudes
             </p>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="divide-y divide-border/50">
             {tasks.map((task) => {
               const value = getEntryValue(task.id);
               return (
                 <div
                   key={task.id}
                   className={cn(
-                    'flex items-center gap-3 p-3 rounded-lg transition-colors',
-                    value === 1 && 'bg-emerald-50 dark:bg-emerald-900/20',
-                    value === 0 && 'bg-red-50 dark:bg-red-900/20',
-                    value === null && 'bg-muted/30'
+                    'flex items-center gap-4 px-4 py-3 transition-colors',
+                    value === 1 && 'bg-emerald-50/50 dark:bg-emerald-900/10',
+                    value === 0.5 && 'bg-orange-50/50 dark:bg-orange-900/10',
+                    value === 0 && 'bg-red-50/50 dark:bg-red-900/10'
                   )}
                 >
                   <TaskToggle
                     value={value}
-                    onChange={() => handleToggle(task.id, value)}
+                    onChange={(newValue) => {
+                      // Direct set for better UX
+                      setEntries((prev) => {
+                        const existing = prev.find(e => e.taskId === task.id);
+                        if (existing) {
+                          return prev.map(e =>
+                            e.taskId === task.id ? { ...e, value: newValue } : e
+                          );
+                        }
+                        return [...prev, { taskId: task.id, date: dateStr, value: newValue, updatedAt: new Date() } as Entry];
+                      });
+                      saveEntry(task.id, dateStr, newValue);
+                    }}
                     size="md"
+                    allowPartial={task.allowPartial}
                   />
                   <div className="flex-1 min-w-0">
                     <div className={cn(
                       'font-medium text-sm',
                       value === 1 && 'text-emerald-700 dark:text-emerald-300',
-                      value === 0 && 'text-red-700 dark:text-red-300 line-through opacity-60'
+                      value === 0.5 && 'text-orange-700 dark:text-orange-300',
+                      value === 0 && 'text-red-700 dark:text-red-300 line-through opacity-70'
                     )}>
                       {task.name}
                     </div>
-                    {task.category && (
-                      <Badge variant="secondary" className="text-xs mt-1">
-                        {task.category}
-                      </Badge>
-                    )}
+                    <div className="flex items-center gap-2 mt-0.5">
+                      {task.category && (
+                        <Badge variant="secondary" className="text-[10px] h-5 px-1.5">
+                          {task.category}
+                        </Badge>
+                      )}
+                      {task.allowPartial && (
+                        <span className="text-[10px] text-orange-500 font-medium">
+                          Mode 3 couleurs
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
               );

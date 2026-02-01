@@ -9,13 +9,14 @@ export interface Task {
   schedule: 'daily' | 'weekdays' | 'custom';
   order: number;
   createdAt: Date;
+  allowPartial?: boolean; // Si true, permet une valeur intermédiaire (orange)
 }
 
 export interface Entry {
   id?: number;
   date: string; // YYYY-MM-DD
   taskId: string;
-  value: 1 | 0 | null;
+  value: 1 | 0.5 | 0 | null; // 1=fait, 0.5=partiel (orange), 0=raté, null=non renseigné
   updatedAt: Date;
 }
 

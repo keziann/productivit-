@@ -49,6 +49,7 @@ export interface DBTask {
   active: boolean;
   schedule: string;
   sort_index: number;
+  allow_partial: boolean;
   created_at: string;
   updated_at: string;
 }

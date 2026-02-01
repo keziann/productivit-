@@ -28,7 +28,7 @@ import { format, isToday, isFuture } from 'date-fns';
 
 const STICKY_LEFT_Z = 10;
 const STICKY_RIGHT_Z = 10;
-const PERCENT_COL_WIDTH = 48; // w-12
+const PERCENT_COL_WIDTH = 48;
 
 interface WeekGridProps {
   initialDate?: Date;
@@ -81,48 +81,58 @@ export function WeekGrid({ initialDate = new Date() }: WeekGridProps) {
   const goToNextWeek = () => setCurrentDate(getNextWeek(currentDate));
   const goToToday = () => setCurrentDate(new Date());
 
-  const handleToggle = async (taskId: string, date: string, currentValue: 1 | 0 | null) => {
+  const handleToggle = async (task: Task, date: string, currentValue: 1 | 0.5 | 0 | null) => {
     if (!isAuthenticated) return;
 
-    let newValue: 1 | 0 | null;
-    if (currentValue === null) newValue = 1;
-    else if (currentValue === 1) newValue = 0;
-    else newValue = null;
+    let newValue: 1 | 0.5 | 0 | null;
+
+    if (task.allowPartial) {
+      // Cycle: null -> 1 -> 0.5 -> 0 -> null
+      if (currentValue === null) newValue = 1;
+      else if (currentValue === 1) newValue = 0.5;
+      else if (currentValue === 0.5) newValue = 0;
+      else newValue = null;
+    } else {
+      // Cycle: null -> 1 -> 0 -> null
+      if (currentValue === null) newValue = 1;
+      else if (currentValue === 1) newValue = 0;
+      else newValue = null;
+    }
 
     setEntries((prev) => {
-      const existing = prev.find(e => e.taskId === taskId && e.date === date);
+      const existing = prev.find(e => e.taskId === task.id && e.date === date);
       if (existing) {
         return prev.map(e =>
-          e.taskId === taskId && e.date === date
+          e.taskId === task.id && e.date === date
             ? { ...e, value: newValue }
             : e
         );
       }
-      return [...prev, { taskId, date, value: newValue, updatedAt: new Date() } as Entry];
+      return [...prev, { taskId: task.id, date, value: newValue, updatedAt: new Date() } as Entry];
     });
 
     setAllEntries((prev) => {
-      const existing = prev.find(e => e.taskId === taskId && e.date === date);
+      const existing = prev.find(e => e.taskId === task.id && e.date === date);
       if (existing) {
         return prev.map(e =>
-          e.taskId === taskId && e.date === date
+          e.taskId === task.id && e.date === date
             ? { ...e, value: newValue }
             : e
         );
       }
-      return [...prev, { taskId, date, value: newValue, updatedAt: new Date() } as Entry];
+      return [...prev, { taskId: task.id, date, value: newValue, updatedAt: new Date() } as Entry];
     });
 
     try {
-      await saveEntry(taskId, date, newValue);
+      await saveEntry(task.id, date, newValue);
     } catch (error) {
       console.error('Error updating entry:', error);
     }
   };
 
-  const getEntryValue = (taskId: string, date: string): 1 | 0 | null => {
+  const getEntryValue = (taskId: string, date: string): 1 | 0.5 | 0 | null => {
     const entry = entries.find(e => e.taskId === taskId && e.date === date);
-    return entry?.value ?? null;
+    return (entry?.value as 1 | 0.5 | 0 | null) ?? null;
   };
 
   if (!isAuthenticated) return null;
@@ -140,7 +150,7 @@ export function WeekGrid({ initialDate = new Date() }: WeekGridProps) {
 
   if (isLoading) {
     return (
-      <Card>
+      <Card className="overflow-hidden">
         <CardContent className="py-12">
           <div className="flex items-center justify-center">
             <div className="animate-pulse text-muted-foreground">Chargement...</div>
@@ -152,24 +162,24 @@ export function WeekGrid({ initialDate = new Date() }: WeekGridProps) {
 
   return (
     <div className="space-y-4">
-      {/* Header: framed week selector + actions */}
+      {/* Header: Week navigation */}
       <Card className="overflow-hidden">
-        <CardContent className="p-4 sm:p-5">
+        <CardContent className="p-4">
           <div className="flex flex-col gap-4">
-            {/* Week selector: well framed */}
-            <div className="flex items-center justify-center gap-2">
+            {/* Week selector */}
+            <div className="flex items-center justify-center gap-3">
               <Button
                 variant="outline"
                 size="icon"
-                className="shrink-0 h-9 w-9 rounded-lg border-2"
+                className="shrink-0 h-10 w-10 rounded-xl"
                 onClick={goToPreviousWeek}
                 aria-label="Semaine précédente"
               >
-                <ChevronLeft className="w-4 h-4" />
+                <ChevronLeft className="w-5 h-5" />
               </Button>
-              <div className="min-w-0 flex-1 flex justify-center">
-                <div className="inline-flex items-center justify-center rounded-xl border-2 border-border bg-muted/50 px-4 py-2.5 shadow-sm">
-                  <span className="text-sm font-semibold tabular-nums text-foreground truncate">
+              <div className="flex-1 flex justify-center">
+                <div className="inline-flex items-center justify-center rounded-xl bg-primary/10 px-5 py-2.5">
+                  <span className="text-sm font-bold tabular-nums text-primary">
                     {weekInfo.label}
                   </span>
                 </div>
@@ -177,43 +187,55 @@ export function WeekGrid({ initialDate = new Date() }: WeekGridProps) {
               <Button
                 variant="outline"
                 size="icon"
-                className="shrink-0 h-9 w-9 rounded-lg border-2"
+                className="shrink-0 h-10 w-10 rounded-xl"
                 onClick={goToNextWeek}
                 aria-label="Semaine suivante"
               >
-                <ChevronRight className="w-4 h-4" />
+                <ChevronRight className="w-5 h-5" />
               </Button>
             </div>
 
-            {/* Aujourd'hui + Moyenne */}
+            {/* Today + Average */}
             <div className="flex items-center justify-center gap-3 flex-wrap">
               <Button
                 variant="outline"
                 size="sm"
-                className="rounded-lg border-2 h-9 px-4 gap-2"
+                className="rounded-xl h-10 px-4 gap-2"
                 onClick={goToToday}
               >
                 <Calendar className="w-4 h-4" />
                 Aujourd&apos;hui
               </Button>
-              <div className="rounded-lg border-2 border-border bg-muted/50 px-4 py-2 shadow-sm">
+              <div className={cn(
+                'rounded-xl px-4 py-2',
+                weekAverage >= 70 ? 'bg-emerald-100 dark:bg-emerald-900/30' :
+                weekAverage >= 40 ? 'bg-orange-100 dark:bg-orange-900/30' :
+                'bg-red-100 dark:bg-red-900/30'
+              )}>
                 <span className="text-sm font-medium text-muted-foreground">Moyenne </span>
-                <span className="text-sm font-bold tabular-nums text-foreground">{weekAverage}%</span>
+                <span className={cn(
+                  'text-sm font-bold tabular-nums',
+                  weekAverage >= 70 ? 'text-emerald-600 dark:text-emerald-400' :
+                  weekAverage >= 40 ? 'text-orange-600 dark:text-orange-400' :
+                  'text-red-600 dark:text-red-400'
+                )}>
+                  {weekAverage}%
+                </span>
               </div>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Grid: scrollable with sticky task names (left) and percentages (right) */}
-      <Card>
+      {/* Grid */}
+      <Card className="overflow-hidden">
         <CardContent className="p-0">
-          <div className="overflow-x-auto overflow-y-visible -mx-px" style={{ WebkitOverflowScrolling: 'touch' }}>
-            <table className="w-full border-collapse" style={{ minWidth: 480 }}>
+          <div className="overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
+            <table className="w-full border-collapse" style={{ minWidth: 520 }}>
               <thead>
-                <tr className="border-b bg-muted/30">
+                <tr className="border-b bg-muted/40">
                   <th
-                    className="text-left p-2 sm:p-3 font-medium text-xs sm:text-sm w-[100px] sm:w-36 shrink-0 sticky left-0 z-20 bg-muted/50 backdrop-blur-sm border-r"
+                    className="text-left p-3 font-semibold text-xs w-28 sm:w-36 sticky left-0 z-20 bg-muted/80 backdrop-blur-sm border-r"
                     scope="col"
                   >
                     Tâche
@@ -225,18 +247,18 @@ export function WeekGrid({ initialDate = new Date() }: WeekGridProps) {
                       <th
                         key={dateStr}
                         className={cn(
-                          'text-center p-1.5 sm:p-2 font-medium text-xs w-11 sm:w-14 shrink-0',
-                          dayIsToday && 'bg-emerald-500/20 dark:bg-emerald-950/40'
+                          'text-center p-2 font-medium text-xs w-12 sm:w-14',
+                          dayIsToday && 'bg-primary/10'
                         )}
                         scope="col"
                       >
-                        <div className="uppercase tracking-wide text-muted-foreground text-[10px] sm:text-xs">
+                        <div className="uppercase tracking-wide text-muted-foreground text-[10px]">
                           {getDayName(day)}
                         </div>
                         <div
                           className={cn(
-                            'text-xs font-semibold mt-0.5 tabular-nums',
-                            dayIsToday && 'text-emerald-600 dark:text-emerald-400'
+                            'text-sm font-bold mt-0.5 tabular-nums',
+                            dayIsToday && 'text-primary'
                           )}
                         >
                           {format(day, 'd')}
@@ -245,14 +267,14 @@ export function WeekGrid({ initialDate = new Date() }: WeekGridProps) {
                     );
                   })}
                   <th
-                    className="text-center p-2 font-medium text-xs w-12 shrink-0 sticky right-[48px] z-20 bg-muted/50 backdrop-blur-sm border-l border-r"
+                    className="text-center p-2 font-semibold text-xs w-12 sticky right-12 z-20 bg-muted/80 backdrop-blur-sm border-l"
                     style={{ width: PERCENT_COL_WIDTH }}
                     scope="col"
                   >
                     Sem.
                   </th>
                   <th
-                    className="text-center p-2 font-medium text-xs w-12 shrink-0 sticky right-0 z-20 bg-muted/50 backdrop-blur-sm border-l"
+                    className="text-center p-2 font-semibold text-xs w-12 sticky right-0 z-20 bg-muted/80 backdrop-blur-sm border-l"
                     style={{ width: PERCENT_COL_WIDTH }}
                     scope="col"
                   >
@@ -263,15 +285,20 @@ export function WeekGrid({ initialDate = new Date() }: WeekGridProps) {
               <tbody>
                 {weekStats.map(({ task, week, global }) => (
                   <tr key={task.id} className="border-b last:border-0 hover:bg-muted/20">
-                    <td className="p-2 sm:p-3 sticky left-0 z-10 bg-card border-r shrink-0 w-[100px] sm:w-36">
-                      <div className="font-medium text-xs sm:text-sm truncate max-w-[88px] sm:max-w-[140px]" title={task.name}>
+                    <td className="p-3 sticky left-0 z-10 bg-card border-r w-28 sm:w-36">
+                      <div className="font-medium text-sm truncate max-w-24 sm:max-w-32" title={task.name}>
                         {task.name}
                       </div>
-                      {task.category && (
-                        <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 truncate max-w-[88px] sm:max-w-[140px]">
-                          {task.category}
-                        </div>
-                      )}
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        {task.category && (
+                          <span className="text-[10px] text-muted-foreground truncate max-w-16">
+                            {task.category}
+                          </span>
+                        )}
+                        {task.allowPartial && (
+                          <span className="w-2 h-2 rounded-full bg-orange-500" title="Mode 3 couleurs" />
+                        )}
+                      </div>
                     </td>
                     {weekInfo.days.map((day) => {
                       const dateStr = formatDate(day);
@@ -283,41 +310,44 @@ export function WeekGrid({ initialDate = new Date() }: WeekGridProps) {
                         <td
                           key={dateStr}
                           className={cn(
-                            'p-1 sm:p-1.5 shrink-0 w-11 sm:w-14',
-                            dayIsToday && 'bg-emerald-500/10 dark:bg-emerald-950/30'
+                            'p-1.5 w-12 sm:w-14',
+                            dayIsToday && 'bg-primary/5'
                           )}
                         >
                           <TaskToggleCompact
                             value={value}
-                            onChange={() => handleToggle(task.id, dateStr, value)}
+                            onChange={() => handleToggle(task, dateStr, value)}
                             disabled={dayIsFuture}
+                            allowPartial={task.allowPartial}
                           />
                         </td>
                       );
                     })}
                     <td
-                      className="p-1.5 text-center sticky right-[48px] z-10 bg-card border-l border-r shrink-0"
+                      className="p-2 text-center sticky right-12 z-10 bg-card border-l"
                       style={{ width: PERCENT_COL_WIDTH }}
                     >
                       <Badge
-                        variant={week.rate >= 70 ? 'default' : week.rate >= 40 ? 'secondary' : 'destructive'}
                         className={cn(
-                          'text-[10px] font-mono px-1.5 py-0',
-                          week.rate >= 70 && 'bg-emerald-500 hover:bg-emerald-600'
+                          'text-[10px] font-mono px-2 py-0.5',
+                          week.rate >= 70 ? 'bg-emerald-500 hover:bg-emerald-600 text-white' :
+                          week.rate >= 40 ? 'bg-orange-500 hover:bg-orange-600 text-white' :
+                          week.total > 0 ? 'bg-red-500 hover:bg-red-600 text-white' :
+                          'bg-muted text-muted-foreground'
                         )}
                       >
                         {week.total > 0 ? `${week.rate}%` : '—'}
                       </Badge>
                     </td>
                     <td
-                      className="p-1.5 text-center sticky right-0 z-10 bg-card border-l shrink-0"
+                      className="p-2 text-center sticky right-0 z-10 bg-card border-l"
                       style={{ width: PERCENT_COL_WIDTH }}
                     >
                       <span
                         className={cn(
-                          'text-[10px] font-mono font-medium',
+                          'text-xs font-mono font-bold',
                           global.rate >= 70 ? 'text-emerald-600 dark:text-emerald-400' :
-                          global.rate >= 40 ? 'text-yellow-600 dark:text-yellow-400' :
+                          global.rate >= 40 ? 'text-orange-600 dark:text-orange-400' :
                           'text-red-600 dark:text-red-400'
                         )}
                       >

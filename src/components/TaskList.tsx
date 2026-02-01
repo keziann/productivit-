@@ -22,7 +22,8 @@ import {
   ArchiveRestore,
   ChevronUp,
   ChevronDown,
-  GripVertical
+  GripVertical,
+  Palette
 } from 'lucide-react';
 import { useAuth } from './AuthProvider';
 import {
@@ -51,15 +52,17 @@ export function TaskList() {
   const [showArchived, setShowArchived] = useState(false);
   const [newTaskName, setNewTaskName] = useState('');
   const [newTaskCategory, setNewTaskCategory] = useState('');
+  const [newTaskAllowPartial, setNewTaskAllowPartial] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [editName, setEditName] = useState('');
   const [editCategory, setEditCategory] = useState('');
+  const [editAllowPartial, setEditAllowPartial] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
 
   // Load tasks
   const loadTasks = useCallback(async () => {
     if (!isAuthenticated) return;
-    
+
     setIsLoading(true);
     try {
       const data = await getTasks();
@@ -78,7 +81,7 @@ export function TaskList() {
   // Add task
   const handleAddTask = async () => {
     if (!isAuthenticated || !newTaskName.trim()) return;
-    
+
     const newTask: Task = {
       id: crypto.randomUUID(),
       name: newTaskName.trim(),
@@ -86,6 +89,7 @@ export function TaskList() {
       active: true,
       schedule: 'daily',
       order: tasks.length,
+      allowPartial: newTaskAllowPartial,
       createdAt: new Date()
     };
 
@@ -93,6 +97,7 @@ export function TaskList() {
     setTasks(prev => [...prev, newTask]);
     setNewTaskName('');
     setNewTaskCategory('');
+    setNewTaskAllowPartial(false);
     setIsAddDialogOpen(false);
 
     try {
@@ -110,7 +115,8 @@ export function TaskList() {
     const updatedTask = {
       ...editingTask,
       name: editName.trim(),
-      category: editCategory || undefined
+      category: editCategory || undefined,
+      allowPartial: editAllowPartial
     };
 
     // Optimistic update
@@ -130,7 +136,7 @@ export function TaskList() {
     if (!isAuthenticated) return;
 
     const updatedTask = { ...task, active: !task.active };
-    
+
     // Optimistic update
     setTasks(prev => prev.map(t => t.id === task.id ? updatedTask : t));
 
@@ -160,7 +166,7 @@ export function TaskList() {
   // Reorder tasks
   const handleMoveTask = async (taskId: string, direction: 'up' | 'down') => {
     if (!isAuthenticated) return;
-    
+
     const activeTasks = tasks.filter(t => t.active);
     const currentIndex = activeTasks.findIndex(t => t.id === taskId);
     if (currentIndex === -1) return;
@@ -170,10 +176,10 @@ export function TaskList() {
 
     const newOrder = [...activeTasks];
     [newOrder[currentIndex], newOrder[newIndex]] = [newOrder[newIndex], newOrder[currentIndex]];
-    
+
     // Update order values
     const updatedTasks = newOrder.map((t, i) => ({ ...t, order: i }));
-    
+
     // Optimistic update
     const archivedTasks = tasks.filter(t => !t.active);
     setTasks([...updatedTasks, ...archivedTasks]);
@@ -196,7 +202,7 @@ export function TaskList() {
 
   if (isLoading) {
     return (
-      <Card>
+      <Card className="overflow-hidden">
         <CardContent className="py-12">
           <div className="flex items-center justify-center">
             <div className="animate-pulse text-muted-foreground">Chargement...</div>
@@ -209,22 +215,22 @@ export function TaskList() {
   return (
     <div className="space-y-4">
       {/* Add task dialog */}
-      <Card>
-        <CardHeader className="pb-3">
+      <Card className="overflow-hidden">
+        <CardHeader className="pb-3 bg-gradient-to-r from-primary/5 to-transparent">
           <div className="flex items-center justify-between">
             <CardTitle className="text-lg">Tâches actives ({activeTasks.length})</CardTitle>
             <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
               <DialogTrigger asChild>
-                <Button size="sm" className="gap-2">
+                <Button size="sm" className="gap-2 rounded-xl h-10">
                   <Plus className="w-4 h-4" />
                   Nouvelle tâche
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="sm:max-w-md">
                 <DialogHeader>
                   <DialogTitle>Nouvelle tâche</DialogTitle>
                 </DialogHeader>
-                <div className="space-y-4 py-4">
+                <div className="space-y-5 py-4">
                   <div>
                     <label className="text-sm font-medium mb-2 block">Nom</label>
                     <Input
@@ -232,6 +238,7 @@ export function TaskList() {
                       onChange={(e) => setNewTaskName(e.target.value)}
                       placeholder="Ex: Méditation 10 min"
                       onKeyDown={(e) => e.key === 'Enter' && handleAddTask()}
+                      className="h-11 rounded-xl"
                     />
                   </div>
                   <div>
@@ -241,7 +248,7 @@ export function TaskList() {
                         <Badge
                           key={cat}
                           variant={newTaskCategory === cat ? 'default' : 'outline'}
-                          className="cursor-pointer"
+                          className="cursor-pointer h-8 px-3 text-sm rounded-lg"
                           onClick={() => setNewTaskCategory(newTaskCategory === cat ? '' : cat)}
                         >
                           {cat}
@@ -249,12 +256,47 @@ export function TaskList() {
                       ))}
                     </div>
                   </div>
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => setNewTaskAllowPartial(!newTaskAllowPartial)}
+                      className={cn(
+                        'w-full flex items-center gap-3 p-4 rounded-xl border-2 transition-all',
+                        newTaskAllowPartial
+                          ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20'
+                          : 'border-border hover:border-muted-foreground/30'
+                      )}
+                    >
+                      <div className={cn(
+                        'w-10 h-10 rounded-xl flex items-center justify-center',
+                        newTaskAllowPartial ? 'bg-orange-500 text-white' : 'bg-muted'
+                      )}>
+                        <Palette className="w-5 h-5" />
+                      </div>
+                      <div className="flex-1 text-left">
+                        <div className="font-medium text-sm">Mode 3 couleurs</div>
+                        <div className="text-xs text-muted-foreground">
+                          Ajoute une option orange pour "fait mais pas top"
+                        </div>
+                      </div>
+                      <div className={cn(
+                        'w-6 h-6 rounded-full border-2 flex items-center justify-center',
+                        newTaskAllowPartial ? 'border-orange-500 bg-orange-500' : 'border-muted-foreground/30'
+                      )}>
+                        {newTaskAllowPartial && (
+                          <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </div>
+                    </button>
+                  </div>
                 </div>
-                <DialogFooter>
+                <DialogFooter className="gap-2">
                   <DialogClose asChild>
-                    <Button variant="outline">Annuler</Button>
+                    <Button variant="outline" className="rounded-xl">Annuler</Button>
                   </DialogClose>
-                  <Button onClick={handleAddTask} disabled={!newTaskName.trim()}>
+                  <Button onClick={handleAddTask} disabled={!newTaskName.trim()} className="rounded-xl">
                     Ajouter
                   </Button>
                 </DialogFooter>
@@ -262,34 +304,39 @@ export function TaskList() {
             </Dialog>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           {activeTasks.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">
+            <p className="text-center text-muted-foreground py-12">
               Aucune tâche. Cliquez sur "Nouvelle tâche" pour commencer.
             </p>
           ) : (
-            <div className="space-y-2">
+            <div className="divide-y divide-border/50">
               {activeTasks.map((task, index) => (
                 <div
                   key={task.id}
-                  className="flex items-center gap-2 p-3 rounded-lg border bg-card hover:bg-muted/30 transition-colors group"
+                  className="flex items-center gap-3 px-4 py-3 hover:bg-muted/30 transition-colors group"
                 >
-                  <GripVertical className="w-4 h-4 text-muted-foreground/50" />
-                  
+                  <GripVertical className="w-4 h-4 text-muted-foreground/40 shrink-0" />
+
                   <div className="flex-1 min-w-0">
-                    <div className="font-medium text-sm">{task.name}</div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-sm">{task.name}</span>
+                      {task.allowPartial && (
+                        <span className="w-2 h-2 rounded-full bg-orange-500 shrink-0" title="Mode 3 couleurs" />
+                      )}
+                    </div>
                     {task.category && (
-                      <Badge variant="secondary" className="text-xs mt-1">
+                      <Badge variant="secondary" className="text-[10px] h-5 px-1.5 mt-1">
                         {task.category}
                       </Badge>
                     )}
                   </div>
 
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 md:opacity-100 transition-opacity">
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8"
+                      className="h-9 w-9 rounded-xl"
                       onClick={() => handleMoveTask(task.id, 'up')}
                       disabled={index === 0}
                     >
@@ -298,38 +345,40 @@ export function TaskList() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8"
+                      className="h-9 w-9 rounded-xl"
                       onClick={() => handleMoveTask(task.id, 'down')}
                       disabled={index === activeTasks.length - 1}
                     >
                       <ChevronDown className="w-4 h-4" />
                     </Button>
-                    
+
                     <Dialog>
                       <DialogTrigger asChild>
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8"
+                          className="h-9 w-9 rounded-xl"
                           onClick={() => {
                             setEditingTask(task);
                             setEditName(task.name);
                             setEditCategory(task.category || '');
+                            setEditAllowPartial(task.allowPartial || false);
                           }}
                         >
                           <Pencil className="w-4 h-4" />
                         </Button>
                       </DialogTrigger>
-                      <DialogContent>
+                      <DialogContent className="sm:max-w-md">
                         <DialogHeader>
                           <DialogTitle>Modifier la tâche</DialogTitle>
                         </DialogHeader>
-                        <div className="space-y-4 py-4">
+                        <div className="space-y-5 py-4">
                           <div>
                             <label className="text-sm font-medium mb-2 block">Nom</label>
                             <Input
                               value={editName}
                               onChange={(e) => setEditName(e.target.value)}
+                              className="h-11 rounded-xl"
                             />
                           </div>
                           <div>
@@ -339,7 +388,7 @@ export function TaskList() {
                                 <Badge
                                   key={cat}
                                   variant={editCategory === cat ? 'default' : 'outline'}
-                                  className="cursor-pointer"
+                                  className="cursor-pointer h-8 px-3 text-sm rounded-lg"
                                   onClick={() => setEditCategory(editCategory === cat ? '' : cat)}
                                 >
                                   {cat}
@@ -347,13 +396,48 @@ export function TaskList() {
                               ))}
                             </div>
                           </div>
+                          <div>
+                            <button
+                              type="button"
+                              onClick={() => setEditAllowPartial(!editAllowPartial)}
+                              className={cn(
+                                'w-full flex items-center gap-3 p-4 rounded-xl border-2 transition-all',
+                                editAllowPartial
+                                  ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20'
+                                  : 'border-border hover:border-muted-foreground/30'
+                              )}
+                            >
+                              <div className={cn(
+                                'w-10 h-10 rounded-xl flex items-center justify-center',
+                                editAllowPartial ? 'bg-orange-500 text-white' : 'bg-muted'
+                              )}>
+                                <Palette className="w-5 h-5" />
+                              </div>
+                              <div className="flex-1 text-left">
+                                <div className="font-medium text-sm">Mode 3 couleurs</div>
+                                <div className="text-xs text-muted-foreground">
+                                  Ajoute une option orange pour "fait mais pas top"
+                                </div>
+                              </div>
+                              <div className={cn(
+                                'w-6 h-6 rounded-full border-2 flex items-center justify-center',
+                                editAllowPartial ? 'border-orange-500 bg-orange-500' : 'border-muted-foreground/30'
+                              )}>
+                                {editAllowPartial && (
+                                  <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                  </svg>
+                                )}
+                              </div>
+                            </button>
+                          </div>
                         </div>
-                        <DialogFooter>
+                        <DialogFooter className="gap-2">
                           <DialogClose asChild>
-                            <Button variant="outline">Annuler</Button>
+                            <Button variant="outline" className="rounded-xl">Annuler</Button>
                           </DialogClose>
                           <DialogClose asChild>
-                            <Button onClick={handleUpdateTask}>Enregistrer</Button>
+                            <Button onClick={handleUpdateTask} className="rounded-xl">Enregistrer</Button>
                           </DialogClose>
                         </DialogFooter>
                       </DialogContent>
@@ -362,7 +446,7 @@ export function TaskList() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8"
+                      className="h-9 w-9 rounded-xl"
                       onClick={() => handleToggleArchive(task)}
                     >
                       <Archive className="w-4 h-4" />
@@ -377,7 +461,7 @@ export function TaskList() {
 
       {/* Archived tasks */}
       {archivedTasks.length > 0 && (
-        <Card>
+        <Card className="overflow-hidden">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <CardTitle className="text-lg text-muted-foreground">
@@ -386,6 +470,7 @@ export function TaskList() {
               <Button
                 variant="ghost"
                 size="sm"
+                className="rounded-xl"
                 onClick={() => setShowArchived(!showArchived)}
               >
                 {showArchived ? 'Masquer' : 'Afficher'}
@@ -393,17 +478,17 @@ export function TaskList() {
             </div>
           </CardHeader>
           {showArchived && (
-            <CardContent>
-              <div className="space-y-2">
+            <CardContent className="p-0">
+              <div className="divide-y divide-border/50">
                 {archivedTasks.map((task) => (
                   <div
                     key={task.id}
-                    className="flex items-center gap-2 p-3 rounded-lg border bg-muted/30 opacity-60 hover:opacity-100 transition-opacity group"
+                    className="flex items-center gap-3 px-4 py-3 opacity-60 hover:opacity-100 transition-opacity group"
                   >
                     <div className="flex-1 min-w-0">
                       <div className="font-medium text-sm">{task.name}</div>
                       {task.category && (
-                        <Badge variant="outline" className="text-xs mt-1">
+                        <Badge variant="outline" className="text-[10px] h-5 px-1.5 mt-1">
                           {task.category}
                         </Badge>
                       )}
@@ -413,7 +498,7 @@ export function TaskList() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8"
+                        className="h-9 w-9 rounded-xl"
                         onClick={() => handleToggleArchive(task)}
                       >
                         <ArchiveRestore className="w-4 h-4" />
@@ -421,7 +506,7 @@ export function TaskList() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 text-red-500 hover:text-red-600"
+                        className="h-9 w-9 rounded-xl text-red-500 hover:text-red-600"
                         onClick={() => handleDeleteTask(task.id)}
                       >
                         <Trash2 className="w-4 h-4" />

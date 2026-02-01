@@ -16,6 +16,7 @@ export interface TaskStats {
 
 export interface DayStats {
   completed: number;
+  partial: number;
   total: number;
   rate: number;
   filled: number;
@@ -46,10 +47,10 @@ export function getWeekInfo(date: Date): WeekInfo {
   const end = endOfWeek(date, { weekStartsOn: 1 }); // Sunday
   const weekNumber = getISOWeek(date);
   const year = getYear(start);
-  
+
   const startLabel = format(start, 'd', { locale: fr });
   const endLabel = format(end, 'd MMM', { locale: fr });
-  
+
   return {
     weekNumber,
     year,
@@ -75,21 +76,33 @@ export function getDayName(date: Date): string {
   return format(date, 'EEE', { locale: fr });
 }
 
+// Helper to calculate score from value (1 = 1, 0.5 = 0.5, 0 = 0)
+function getValueScore(value: number | null): number {
+  if (value === 1) return 1;
+  if (value === 0.5) return 0.5;
+  return 0;
+}
+
 // Calculate stats for a single day
 export function calculateDayStats(entries: Entry[], tasks: Task[]): DayStats {
   const activeTaskIds = new Set(tasks.filter(t => t.active).map(t => t.id));
   const relevantEntries = entries.filter(e => activeTaskIds.has(e.taskId));
-  
+
   const filled = relevantEntries.filter(e => e.value !== null).length;
   const completed = relevantEntries.filter(e => e.value === 1).length;
+  const partial = relevantEntries.filter(e => e.value === 0.5).length;
   const total = filled;
-  
+
+  // Rate: 1 = 100%, 0.5 = 50%, 0 = 0%
+  const score = relevantEntries.reduce((sum, e) => sum + getValueScore(e.value), 0);
+
   return {
     completed,
+    partial,
     total,
-    rate: total > 0 ? Math.round((completed / total) * 100) : 0,
+    rate: total > 0 ? Math.round((score / total) * 100) : 0,
     filled,
-    fillRate: tasks.length > 0 ? Math.round((filled / activeTaskIds.size) * 100) : 0
+    fillRate: activeTaskIds.size > 0 ? Math.round((filled / activeTaskIds.size) * 100) : 0
   };
 }
 
@@ -102,14 +115,15 @@ export function calculateTaskWeekStats(
   const taskEntries = entries.filter(
     e => e.taskId === taskId && weekDates.includes(e.date) && e.value !== null
   );
-  
-  const completed = taskEntries.filter(e => e.value === 1).length;
+
+  // Score: 1 = 1, 0.5 = 0.5, 0 = 0
+  const score = taskEntries.reduce((sum, e) => sum + getValueScore(e.value), 0);
   const total = taskEntries.length;
-  
+
   return {
-    completed,
+    completed: score, // Can be fractional now
     total,
-    rate: total > 0 ? Math.round((completed / total) * 100) : 0
+    rate: total > 0 ? Math.round((score / total) * 100) : 0
   };
 }
 
@@ -121,14 +135,14 @@ export function calculateTaskGlobalStats(
   const taskEntries = entries.filter(
     e => e.taskId === taskId && e.value !== null
   );
-  
-  const completed = taskEntries.filter(e => e.value === 1).length;
+
+  const score = taskEntries.reduce((sum, e) => sum + getValueScore(e.value), 0);
   const total = taskEntries.length;
-  
+
   return {
-    completed,
+    completed: score,
     total,
-    rate: total > 0 ? Math.round((completed / total) * 100) : 0
+    rate: total > 0 ? Math.round((score / total) * 100) : 0
   };
 }
 
@@ -148,12 +162,13 @@ export function calculateStreak(taskId: string, entries: Entry[]): number {
       const entryDate = new Date(entry.date);
       const expected = new Date(currentDate);
       const diff = Math.floor((expected.getTime() - entryDate.getTime()) / (1000 * 60 * 60 * 24));
-      
+
       if (diff > 1) break; // Streak broken
       currentDate = entry.date;
     }
-    
-    if (entry.value === 1) {
+
+    // 1 or 0.5 counts as streak (at least partially done)
+    if (entry.value === 1 || entry.value === 0.5) {
       streak++;
       currentDate = formatDate(subDays(new Date(currentDate), 1));
     } else if (entry.value === 0) {
@@ -246,12 +261,12 @@ export function calculateTaskMonthStats(
   const taskEntries = entries.filter(
     e => e.taskId === taskId && monthDates.includes(e.date) && e.value !== null
   );
-  const completed = taskEntries.filter(e => e.value === 1).length;
+  const score = taskEntries.reduce((sum, e) => sum + getValueScore(e.value), 0);
   const total = taskEntries.length;
   return {
-    completed,
+    completed: score,
     total,
-    rate: total > 0 ? Math.round((completed / total) * 100) : 0
+    rate: total > 0 ? Math.round((score / total) * 100) : 0
   };
 }
 
@@ -260,6 +275,7 @@ export interface TaskStatsByRange {
   taskId: string;
   taskName: string;
   successCount: number;
+  partialCount: number;
   failCount: number;
   successRate: number | null; // null if no data
 }
@@ -297,17 +313,22 @@ export function getTaskStatsByRange(
       );
 
       const successCount = taskEntries.filter(e => e.value === 1).length;
+      const partialCount = taskEntries.filter(e => e.value === 0.5).length;
       const failCount = taskEntries.filter(e => e.value === 0).length;
-      const total = successCount + failCount;
 
-      const successRate = total > 0 
-        ? Math.round((successCount / total) * 100) 
+      // Score: 1 = 1, 0.5 = 0.5, 0 = 0
+      const score = successCount + (partialCount * 0.5);
+      const total = successCount + partialCount + failCount;
+
+      const successRate = total > 0
+        ? Math.round((score / total) * 100)
         : null;
 
       return {
         taskId: task.id,
         taskName: task.name,
         successCount,
+        partialCount,
         failCount,
         successRate
       };
@@ -321,4 +342,3 @@ export function getTaskStatsByRange(
     return a.successRate - b.successRate; // ascending: lowest first
   });
 }
-
